@@ -50,7 +50,7 @@
 - When comparing file versions, use `semantic_diff` instead of raw git diff to see added/removed/modified symbols by name.
 
 ## 7. AUTO-DEBUG TRIGGER
-- If thinking >30s without producing a fix → STOP reasoning.
+- If you catch yourself re-reading the same files, repeating the same tool calls, or circling the same logic without making progress → STOP and debug.
 - Insert `console.log('DEBUG:' + JSON.stringify(...))` at suspected failure points.
 - Run, read logs, identify problem, fix, remove logs.
 - For crashes (no output): add try/catch + console.error at entry points.
@@ -71,3 +71,11 @@
 - If it can be written in 1 line, don't write 50.
 - Prefer concise implementations: short functions, no unnecessary abstraction.
 - This is NOT a license to skip error handling — just don't add layers that don't solve a real problem.
+
+## 11. GIT BRANCH DISCIPLINE — MAIN ONLY, NO MASTER
+- Always push to `main`. Never commit or push to `master`.
+- Before implementing a new feature, ask the user: "Should I create a feature branch for this?"
+  - If yes: create `feature/<short-description>` and work there.
+  - If no: commit directly to `main`.
+- Feature branches are disposable — if code becomes unfixable, the branch can be destroyed with zero risk to `main`.
+- On feature completion with user approval, merge to `main` and delete the feature branch.
