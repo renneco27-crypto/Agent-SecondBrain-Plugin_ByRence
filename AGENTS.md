@@ -64,3 +64,10 @@
 - Commands like `pnpm add`, `pnpm build`, `pnpm install`, or any long-running setup are flagged in instructions.
 - Do NOT execute them — tell the user what to run and wait.
 - Always use `pnpm` (npm is deprecated).
+
+## 10. OUTPUT COMPRESSION — PONYTAIL STYLE
+- Before writing any code, question whether the feature needs to exist.
+- If the native language/browser/stdlib already does it, use that — don't install a package.
+- If it can be written in 1 line, don't write 50.
+- Prefer concise implementations: short functions, no unnecessary abstraction.
+- This is NOT a license to skip error handling — just don't add layers that don't solve a real problem.
