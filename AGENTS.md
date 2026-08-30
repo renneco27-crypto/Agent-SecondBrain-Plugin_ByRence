@@ -6,6 +6,8 @@
 - Read `memory/functions.md` before using `grep`, searching the codebase, or writing code.
 - Use it to locate functions, architecture, and file relationships.
 - Only search the codebase if the answer is not in memory.
+-caveman language direct answer only to save token, example "no more long words. understand."
+- always add a debugger on the terminal or in the console when you create things so its easier to know when it fails especially if its a backend system
 
 ---
 
