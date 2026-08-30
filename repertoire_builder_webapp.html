@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>♟️ Repertoire Builder & PGN Decompiler</title>
+<title>♟️ Repertoire Builder, Move Notes & Practice Mode</title>
 <!-- Include Chess.js for move validation & FEN generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <style>
@@ -24,6 +24,7 @@
     --sq-selected: rgba(255, 255, 0, 0.45);
     --sq-last-move: rgba(56, 189, 248, 0.4);
     --sq-dest-option: rgba(0, 0, 0, 0.22);
+    --sq-error: rgba(239, 68, 68, 0.55);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -64,7 +65,7 @@
 
   .main-layout {
     display: grid;
-    grid-template-columns: 360px 1fr 380px;
+    grid-template-columns: 360px 1fr 390px;
     height: calc(100vh - 55px);
     overflow: hidden;
   }
@@ -91,7 +92,7 @@
 
   textarea {
     width: 100%;
-    height: 90px;
+    height: 85px;
     background: #0b0f17;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -103,7 +104,7 @@
   }
   textarea:focus { outline: none; border-color: var(--accent); }
 
-  .btn-group { display: flex; gap: 6px; }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
   .btn {
     padding: 7px 12px;
     border-radius: 6px;
@@ -124,6 +125,8 @@
   .btn-primary:hover { background: #0369a1; }
   .btn-success { background: #16a34a; border-color: #22c55e; color: white; }
   .btn-success:hover { background: #15803d; }
+  .btn-warning { background: #d97706; border-color: #f59e0b; color: white; }
+  .btn-warning:hover { background: #b45309; }
 
   /* Decompiled Lines List */
   .lines-container {
@@ -177,6 +180,15 @@
     box-shadow: 0 12px 35px rgba(0,0,0,0.6);
     user-select: none;
     position: relative;
+    transition: transform 0.1s ease;
+  }
+  .chessboard.shake {
+    animation: shake 0.35s ease-in-out;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
   }
 
   .square {
@@ -190,6 +202,7 @@
   .square.dark { background: var(--sq-dark); }
   .square.selected { background: var(--sq-selected) !important; }
   .square.last-move { background: var(--sq-last-move) !important; }
+  .square.error-square { background: var(--sq-error) !important; }
 
   .dest-dot {
     width: 18px;
@@ -246,6 +259,58 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  /* Opening Header & Note Section */
+  .opening-info-box {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #111823;
+  }
+  .opening-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .eco-badge {
+    background: #1e293b;
+    border: 1px solid #334155;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-family: monospace;
+    color: #94a3b8;
+  }
+
+  .note-editor-box {
+    margin-top: 8px;
+    background: #0b0f17;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+  }
+  .note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .note-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #f1f5f9;
+    font-size: 0.8rem;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+    line-height: 1.4;
   }
 
   .branch-section {
@@ -317,16 +382,30 @@
     color: #94a3b8;
     user-select: all;
   }
+
+  /* Practice Mode Banner */
+  .practice-banner {
+    background: #064e3b;
+    border: 1px solid #059669;
+    color: #a7f3d0;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>♟️ Repertoire Builder & PGN Decompiler <span class="badge">Movable Chess Board</span></h1>
+  <h1>♟️ Repertoire Builder & PGN Decompiler <span class="badge">Live Practice & Move Notes</span></h1>
   
-  <!-- Keyboard Shortcut Indicators -->
   <div class="shortcuts-hint">
-    <span>Navigation:</span>
+    <span>Shortcuts:</span>
     <span class="kbd">◀ Left</span> Prev
     <span class="kbd">Right ▶</span> Next
     <span class="kbd">▲ Up</span> Start
@@ -335,7 +414,8 @@
   </div>
 
   <div style="display:flex; gap:8px;">
-    <button class="btn btn-success" onclick="loadSampleScotch()">⚡ Load Scotch PGN</button>
+    <button class="btn btn-success" id="practice-btn" onclick="togglePracticeMode()">🎯 Practice Line</button>
+    <button class="btn btn-warning" onclick="revertToOriginalPgn()">🔄 Revert to Original</button>
     <button class="btn" onclick="flipBoard()">🔄 Flip Board</button>
     <button class="btn btn-primary" onclick="exportCurrentLine()">💾 Export Line</button>
   </div>
@@ -349,9 +429,10 @@
       <span id="line-count-badge" style="font-size:0.75rem; color:var(--accent);">0 Lines</span>
     </div>
     <div class="panel-body">
-      <textarea id="pgn-input" placeholder="Paste repertoire PGN with nested variations (...) here..."></textarea>
+      <textarea id="pgn-input" placeholder="Paste repertoire PGN with nested variations (...) and {comments}..."></textarea>
       <div class="btn-group">
-        <button class="btn btn-primary" style="flex:1;" onclick="decompilePgn()">⚡ Decompile to Lines</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="decompilePgn()">⚡ Decompile</button>
+        <button class="btn" onclick="loadSampleScotch()">Sample</button>
         <button class="btn" onclick="document.getElementById('file-upload').click()">📁 Upload</button>
         <input type="file" id="file-upload" accept=".pgn" style="display:none" onchange="handleFileUpload(event)">
       </div>
@@ -370,6 +451,12 @@
   <!-- Center Panel: Movable Chessboard -->
   <div class="center-panel">
     <div class="board-container">
+      <!-- Practice Mode Banner -->
+      <div id="practice-alert" class="practice-banner" style="display:none; width:520px;">
+        <span id="practice-status-text">🎯 Practice Mode Active: Play White's move from memory!</span>
+        <button class="btn" style="padding:2px 8px; font-size:0.7rem; background:#047857;" onclick="togglePracticeMode()">Exit</button>
+      </div>
+
       <div id="chessboard" class="chessboard"></div>
       
       <div class="board-controls">
@@ -386,11 +473,23 @@
     </div>
   </div>
 
-  <!-- Right Panel: Branch Selection & Line Moves -->
+  <!-- Right Panel: Opening Info, Move Notes & Branch Selector -->
   <div class="right-panel">
-    <div class="panel-header">
-      <span>🌳 Branch Selector & Variations</span>
-      <span id="turn-badge" style="font-size:0.75rem; color:#22c55e;">White to move</span>
+    <!-- Opening & Move Explanations -->
+    <div class="opening-info-box">
+      <div class="opening-title">
+        <span id="opening-name-text">Scotch Game</span>
+        <span class="eco-badge" id="eco-code-text">C45</span>
+      </div>
+      
+      <!-- Move Notes / Explanations Editor -->
+      <div class="note-editor-box">
+        <div class="note-header">
+          <span>📝 Move Explanation & Tactical Notes:</span>
+          <button class="btn" style="padding:2px 6px; font-size:0.68rem; height:20px;" onclick="saveCurrentNote()">💾 Save Note</button>
+        </div>
+        <textarea id="move-note-input" class="note-input" placeholder="Type tactical rationale (e.g. Attacks the e4 pawn, prepares ...Bb4)..." oninput="onNoteTyped()"></textarea>
+      </div>
     </div>
 
     <!-- Available Branches -->
@@ -405,7 +504,7 @@
     </div>
 
     <!-- Active Line Moves -->
-    <div class="panel-header" style="border-top: 1px solid var(--border);">
+    <div class="panel-header">
       <span>📜 Active Line Notation</span>
     </div>
     <div class="notation-view" id="notation-history"></div>
@@ -426,9 +525,9 @@ const PIECE_SVGS = {
   'b': {
     'p': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PHBhdGggZD0iTTIyLjUgOWMtMi4yMSAwLTQgMS43OS00IDQgMCAuODkuMjkgMS43MS43OCAyLjM4QzE3LjMzIDE2LjUgMTYgMTguNTkgMTYgMjFjMCAyLjAzLjk0IDMuODQgMi40MSA1LjAzLTMgMS4wNi03LjQxIDUuNTUtNy40MSAxMy40N2gyM2MwLTcuOTItNC40MS0xMi40MS03LjQxLTEzLjQ3IDEuNDctMS4xOSAyLjQxLTMgMi40MS01LjAzIDAtMi40MS0xLjMzLTQuNS0zLjI4LTUuNjIuNDktLjY3Ljc4LTEuNDkuNzgtMi4zOCAwLTIuMjEtMS43OS00LTQtNHoiIHN0cm9rZT0iIzAwMCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==",
     'n': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMiAxMGMxMC41IDEgMTYuNSA4IDE2IDI5SDE1YzAtOSAxMC02LjUgOC0yMSIgZmlsbD0iIzAwMCIvPjxwYXRoIGQ9Ik0yNCAxOGMuMzggMi45MS01LjU1IDcuMzctOCA5LTMgMi0yLjgyIDQuMzQtNSA0LTEuMDQyLS45NCAxLjQxLTMuMDQgMC0zLTEgMCAuMTkgMS4yMy0xIDItMSAwLTQuMDAzIDEtNC00IDAtMiA2LTEyIDYtMTJzMS44OS0xLjkgMi0zLjVjLS43My0uOTk0LS41LTItLjUtMyAxLTEgMyAyLjUgMyAyLjVoMnMuNzgtMS45OTIgMi41LTNjMSAwIDEgMyAxIDMiIGZpbGw9IiMwMDAiLz48cGF0aCBkPSJNOS41IDI1LjVhLjUuNSAwIDEgMS0xIDAgLjUuNSAwIDEgMSAxIDB6bTUuNDMzLTkuNzVhLjUgMS41IDMwIDEgMS0uODY2LS41LjUgMS41IDMwIDEgMSAuODY2LjV6IiBmaWxsPSIjZWNlY2VjIiBzdHJva2U9IiNlY2VjZWMiLz48cGF0aCBkPSJNMjQuNTUgMTAuNGwtLjQ1IDEuNDUuNS4xNWMzLjE1IDEgNS42NSAyLjQ5IDcuOSA2Ljc1UzM1Ljc1IDI5LjA2IDM1LjI1IDM5bC0uMDUuNWgyLjI1bC4wNS0uNWMuNS0xMC4wNi0uODgtMTYuODUtMy4yNS0yMS4zNC0yLjM3LTQuNDktNS43OS02LjY0LTkuMTktNy4xNmwtLjUxLS4xeiIgZmlsbD0iI2VjZWNlYyIgc3Ryb2tlPSJub25lIi8+PC9nPjwvc3ZnPg==",
-    'b': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxnIGZpbGw9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJidXR0Ij48cGF0aCBkPSJNOSAzNmMzLjM5LS45NyAxMC4xMS40MyAxMy41LTIgMy4zOSAyLjQzIDEwLjExIDEuMDMgMTMuNSAyIDAgMCAxLjY1LjU0IDMgMi0uNjguOTctMS42NS45OS0zIC41LTMuMzktLjk3LTEwLjExLjQ2LTEzLjUtMS0zLjM5IDEuNDYtMTAuMTEuMDMtMTMuNSAxLTEuMzU0LjQ5LTIuMzIzLjQ3LTMtLjUgMS4zNTQtMS45NCAzLTIgMy0yeiIvPjxwYXRoIGQ9Ik0xNSAzMmMyLjUgMi41IDEyLjUgMi41IDE1IDAgLjUtMS41IDAtMiAwLTIgMC0yLjUtMi41LTQtMi41LTQgNS41LTEuNSA2LTExLjUtNS0xNS41LTExIDQtMTAuNSAxNC01IDE1LjUgMCAwLTIuNSAxLjUtMi41IDQgMCAwLS41LjUgMCAyeiIvPjxwYXRoIGQ9Ik0yNSA4YTIuNSAyLjUgMCAxIDEtNSAwIDIuNSAyLjUgMCAxIDEgNSAweiIvPjwvZz48cGF0aCBkPSJNMTcuNSAyNmgxME0xNSAzMGgxNW0tNy41LTE0LjV2NU0yMCAxOGg1IiBzdHJva2U9IiNlY2VjZWMiIHN0cm9rZS1saW5lam9pbj0ibWl0ZXIiLz48L2c+PC9zdmc+",
+    'b': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxnIGZpbGw9IiMwMDAiIHN0cm9rZS1saW5lY2FwPSJidXR0Ij48cGF0aCBkPSJNOSAzNmMzLjM5LS45NyAxMC4xMS40MyAxMy41LTIgMy4zOSAyLjQzIDEwLjExIDEuMDMgMTMuNSAyIDAgMCAxLjY1LjU0IDMgMi0uNjguOTctMS42NS45OS0zIC41LTMuMzktLjk3LTEwLjExLjQ2LTEzLjUtMS0zLjM5IDEuNDYtMTAuMTEuMDMtMTMuNSAxLTEuMzU0LjQ5LTIuMzIzLjQ3LTMtLjUgMS4zNTQtMS45NCAzLTIgMy0yeiIvPjxwYXRoIGQ9Ik0xNSAzMmMyLjUgMi41IDEyLjUgMi41IDE1IDAgLjUtMS41IDAtMiAwLTIgMC0yLjUtMi41LTQtMi41LTQgNS41LTEuNSA2LTExLjUtNS0xNS41LTExIDQtMTAuNSAxNC01IDE1LjUgMCAwLTIuNSAxLjUtMi41IDQgMCAwLS41LjUgMCAyeiIvPjxwYXRoIGQ9Ik0yNSA4YTIuNSAyLjUgMCAxIDEtNSAwIDIuNSAyLjUgMCAxIDEgNSAweiIvPjwvZz48cGF0aCBkPSJNMTcuNSAyNmgxME0xNSAzMGgxNW0tNy41LTE0LjV2NU0yMCAxOGg1IiBzdHJva2UtbGluZWpvaW49Im1pdGVyIi8+PC9nPjwvc3ZnPg==",
     'r': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PGcgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik05IDM5aDI3di0zSDl2M3ptMy41LTdsMS41LTIuNWgxN2wxLjUgMi41aC0yMHptLS41IDR2LTRoMjF2NEgxMnoiIHN0cm9rZS1saW5lY2FwPSJidXR0Ii8+PHBhdGggZD0iTTE0IDI5LjV2LTEzaDE3djEzSDE0eiIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiLz48cGF0aCBkPSJNMTQgMTYuNUwxMSAxNGgyM2wtMyAyLjVIMTR6TTExIDE0VjloNHYyaDVWOWg1djJoNVY5aDR2NUgxMXoiIHN0cm9rZS1saW5lY2FwPSJidXR0Ii8+PHBhdGggZD0iTTEyIDM1LjVoMjFtLTIwLTRoMTltLTE4LTJoMTdtLTE3LTEzaDE3TTExIDE0aDIzIiBmaWxsPSJub25lIiBzdHJva2U9IiNlY2VjZWMiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLWxpbmVqb2luPSJtaXRlciIvPjwvZz48L3N2Zz4=",
-    'q': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PGcgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxnIHN0cm9rZT0ibm9uZSI+PGNpcmNsZSBjeD0iNiIgY3k9IjEyIiByPSIyLjc1Ii8+PGNpcmNsZSBjeD0iMTQiIGN5PSI5IiByPSIyLjc1Ii8+PGNpcmNsZSBjeD0iMjIuNSIgY3k9IjgiIHI9IjIuNzUiLz48Y2lyY2xlIGN4PSIzMSIgY3k9IjkiIHI9IjIuNzUiLz48Y2lyY2xlIGN4PSIzOSIgY3k9IjEyIiByPSIyLjc1Ii8+PC9nPjxwYXRoIGQ9Ik05IDI2YzguNS0xLjUgMjEtMS41IDI3IDBsMi41LTEyLjVMMzEgMjVsLS4zLTE0LjEtNS4yIDEzLjYtMy0xNC41LTMgMTQuNS01LjItMTMuNkwxNCAyNSA2LjUgMTMuNSA5IDI2eiIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiLz48cGF0aCBkPSJNOSAyNmMwIDIgMS41IDIgMi41IDQgMSAxLjUgMSAxIC41IDMuNS0xLjUgMS0xLjUgMi41LTEuNSAyLjUtMS41IDEuNS41IDIuNS41IDIuNSA2LjUgMSAxNi41IDEgMjMgMCAwIDAgMS41LTEgMC0yLjUgMCAwIC41LTEuNS0xLTIuNS0uNS0yLjUtLjUtMiAuNS0zLjUgMS0yIDIuNS0yIDIuNS00LTguNS0xLjUtMTguNS0xLjUtMjcgMHoiIHN0cm9rZS1saW5lY2FwPSJidXR0Ii8+PHBhdGggZD0iTTExIDM4LjVhMzUgMzUgMSAwIDAgMjMgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiLz48cGF0aCBkPSJNMTEgMjlhMzUgMzUgMSAwIDEgMjMgMG0tMjEuNSAyLjVoMjBtLTIxIDNhMzUgMzUgMSAwIDAgMjIgMG0tMjMgM2EzNSAzNSAxIDAgMCAyNCAwIiBmaWxsPSJub25lIiBzdHJva2U9IiNlY2VjZWMiLz48L2c+PC9zdmc+",
+    'q': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PGcgZmlsbD0iI2ZmZiIgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxnIHN0cm9rZT0ibm9uZSI+PGNpcmNsZSBjeD0iNiIgY3k9IjEyIiByPSIyLjc1Ii8+PGNpcmNsZSBjeD0iMTQiIGN5PSI5IiByPSIyLjc1Ii8+PGNpcmNsZSBjeD0iMjIuNSIgY3k9IjgiIHI9IjIuNzUiLz48Y2lyY2xlIGN4PSIzMSIgY3k9IjkiIHI9IjIuNzUiLz48Y2lyY2xlIGN4PSIzOSIgY3k9IjEyIiByPSIyLjc1Ii8+PC9nPjxwYXRoIGQ9Ik05IDI2YzguNS0xLjUgMjEtMS41IDI3IDBsMi41LTEyLjVMMzEgMjVsLS4zLTE0LjEtNS4yIDEzLjYtMy0xNC41LTMgMTQuNS01LjItMTMuNkwxNCAyNSA2LjUgMTMuNSA5IDI2eiIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiLz48cGF0aCBkPSJNOSAyNmMwIDIgMS41IDIgMi41IDQgMSAxLjUgMSAxIC41IDMuNS0xLjUgMS0xLjUgMi41LTEuNSAyLjUtMS41IDEuNS41IDIuNS41IDIuNSA2LjUgMSAxNi41IDEgMjMgMCAwIDAgMS41LTEgMC0yLjUgMCAwIC41LTEuNS0xLTIuNS0uNS0yLjUtLjUtMiAuNS0zLjUgMS0yIDIuNS0yIDIuNS00LTguNS0xLjUtMTguNS0xLjUtMjcgMHoiIHN0cm9rZS1saW5lY2FwPSJidXR0Ii8+PHBhdGggZD0iTTExIDM4LjVhMzUgMzUgMSAwIDAgMjMgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9ImJ1dHQiLz48cGF0aCBkPSJNMTEgMjlhMzUgMzUgMSAwIDEgMjMgMG0tMjEuNSAyLjVoMjBtLTIxIDNhMzUgMzUgMSAwIDAgMjIgMG0tMjMgM2EzNSAzNSAxIDAgMCAyNCAwIiBmaWxsPSJub25lIiBzdHJva2U9IiNlY2VjZWMiLz48L2c+PC9zdmc+",
     'k': "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NSIgaGVpZ2h0PSI0NSI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMi41IDExLjYzVjYiIHN0cm9rZS1saW5lam9pbj0ibWl0ZXIiLz48cGF0aCBkPSJNMjIuNSAyNXM0LjUtNy41IDMtMTAuNWMwIDAtMS0yLjUtMy0yLjVzLTMgMi41LTMgMi41Yy0xLjUgMyAzIDEwLjUgMyAxMC41IiBmaWxsPSIjMDAwIiBzdHJva2UtbGluZWNhcD0iYnV0dCIgc3Ryb2tlLWxpbmVqb2luPSJtaXRlciIvPjxwYXRoIGQ9Ik0xMS41IDM3YzUuNSAzLjUgMTUuNSAzLjUgMjEgMHYtN3M5LTQuNSA2LTEwLjVjLTQtNi41LTEzLjUtMy41LTE2IDRWMjd2LTMuNWMtMy41LTcuNS0xMy0xMC41LTE2LTQtMyA2IDUgMTAgNSAxMFYzN3oiIGZpbGw9IiMwMDAiLz48cGF0aCBkPSJNMjAgOGg1IiBzdHJva2UtbGluZWpvaW49Im1pdGVyIi8+PHBhdGggZD0iTTMyIDI5LjVzOC41LTQgNi4wMy05LjY1QzM0LjE1IDE0IDI1IDE4IDIyLjUgMjQuNWwuMDEgMi4xLS4wMS0yLjFDMjAgMTggOS45MDYgMTQgNi45OTcgMTkuODVjLTIuNDk3IDUuNjUgNC44NTMgOSA0Ljg1MyA5IiBzdHJva2U9IiNlY2VjZWMiLz48cGF0aCBkPSJNMTEuNSAzMGM1LjUtMyAxNS41LTMgMjEgMG0tMjEgMy41YzUuNS0zIDE1LjUtMyAyMSAwbS0yMSAzLjVjNS41LTMgMTUuNS0zIDIxIDAiIHN0cm9rZT0iI2VjZWNlYyIvPjwvZz48L3N2Zz4="
   }
 };
@@ -442,14 +541,20 @@ let isFlipped = false;
 let selectedSquare = null;
 let legalMoves = [];
 let lastMoveSquares = [];
+let errorSquare = null;
 
 // Repertoire Tree & Decompiled Lines
+let originalPgnRaw = "";
 let treeRoot = null;
 let currentTreeNode = null;
 let decompiledLines = [];
 let activeLineIndex = 0;
-let moveHistory = []; // { san, fen, node, from, to }
+let moveHistory = []; // { san, fen, node, comment }
 let currentPly = 0;
+
+// Interactive Practice Mode State
+let isPracticeMode = false;
+let practiceUserSide = 'w'; // 'w' = White, 'b' = Black
 
 // Sample Scotch PGN
 const SAMPLE_SCOTCH_PGN = `[Event "white Repertoire"]
@@ -460,7 +565,7 @@ const SAMPLE_SCOTCH_PGN = `[Event "white Repertoire"]
 [Black "N/A"]
 [Result "*"]
 
-1. e4 e5 2. Nf3 Nc6 3. d4 exd4 (3... d6 4. dxe5 dxe5 5. Qxd8+ Nxd8 (5... Kxd8 6. Nc3 Bd7 7. Bc4) 6. Nxe5 Nf6 7. Nc3 Bb4 8. f3 O-O 9. Nd3 Bxc3+ 10. bxc3 b6 11. Nf4 Re8 12. a4 Ne6 13. Kf2 a5 14. g4) (3... Nf6 4. d5 Nd4 5. Nxe5 d6 6. Nc4 c5 7. c3 Nb5 8. a4 Nc7 9. Bd3 Be7 10. O-O) (3... f6 4. Bc4 exd4 5. O-O Bc5 6. c3 dxc3 7. Bxg8 Rxg8 8. Qd5) (3... d5 4. Nxe5 Nxe5 5. dxe5 d4 6. c3 Bc5 7. Bc4 Ne7 8. e6 Bxe6 9. Bxe6 fxe6 10. Qh5+ Kf8 11. Qxc5) (3... Bb4+ 4. c3 Ba5 5. a4 Nf6 6. b4 Bb6 7. a5) (3... Nxd4 4. Nxd4 exd4 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7 psychological 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4) 4. Nxd4 Nxd4 (4... Bc5 5. Nb3 Bb6 6. Qe2 d6 7. Nc3 Nf6 8. Be3 O-O 9. O-O-O Re8 10. f3 Be6 11. Kb1 Qe7 12. g4 Nd7 13. h4 Nde5 14. g5 Bc4 15. Qf2 Bxf1 16. Qxf1 Bxe3 17. Nd5 Qe6 18. Nxe3 a5 19. a3 b5 20. Nd5 a4 21. Nd2) (4... Nf6 5. Nc3 Bb4 (5... Nxd4 6. Qxd4 d6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) 6. Nxc6 bxc6 7. Bd3 d5 8. Bd2 O-O 9. O-O Bxc3 10. Bxc3 dxe4 11. Bxf6 Qxf6 12. Bxe4 Qxb2 13. Bxc6 Rb8 14. Rb1 Qxb1 15. Qxb1 Rxb1 16. Rxb1 Be6 17. Rb7 Rd8 18. Kf1 Bxa2 19. Rxa7 Bc4+ 20. Ke1 Rc8 21. Bd7 Rd8 22. Rxc7 Be6 23. Bxe6) 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7+ Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4 *`;
+1. e4 {Controls the center and frees bishops} e5 2. Nf3 {Develops knight and attacks the e5 pawn} Nc6 {Defends e5} 3. d4 {Scotch Game: strikes open the center} exd4 (3... d6 {Philidor Defense transposition} 4. dxe5 dxe5 5. Qxd8+ Nxd8 (5... Kxd8 6. Nc3 Bd7 7. Bc4) 6. Nxe5 Nf6 7. Nc3 Bb4 8. f3 O-O 9. Nd3 Bxc3+ 10. bxc3 b6 11. Nf4 Re8 12. a4 Ne6 13. Kf2 a5 14. g4) (3... Nf6 {Two Knights counter-attack on e4} 4. d5 Nd4 5. Nxe5 d6 6. Nc4 c5 7. c3 Nb5 8. a4 Nc7 9. Bd3 Be7 10. O-O) (3... f6 4. Bc4 exd4 5. O-O Bc5 6. c3 dxc3 7. Bxg8 Rxg8 8. Qd5) (3... d5 4. Nxe5 Nxe5 5. dxe5 d4 6. c3 Bc5 7. Bc4 Ne7 8. e6 Bxe6 9. Bxe6 fxe6 10. Qh5+ Kf8 11. Qxc5) (3... Bb4+ 4. c3 Ba5 5. a4 Nf6 6. b4 Bb6 7. a5) (3... Nxd4 4. Nxd4 exd4 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7+ Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4) 4. Nxd4 {Recaptures pawn and dominates central squares} Nxd4 (4... Bc5 {Classical Variation: pressures d4} 5. Nb3 Bb6 6. Qe2 d6 7. Nc3 Nf6 8. Be3 O-O 9. O-O-O Re8 10. f3 Be6 11. Kb1 Qe7 12. g4 Nd7 13. h4 Nde5 14. g5 Bc4 15. Qf2 Bxf1 16. Qxf1 Bxe3 17. Nd5 Qe6 18. Nxe3 a5 19. a3 b5 20. Nd5 a4 21. Nd2) (4... Nf6 {Mieses Variation: attacks e4} 5. Nc3 Bb4 (5... Nxd4 6. Qxd4 d6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) 6. Nxc6 bxc6 7. Bd3 d5 8. Bd2 O-O 9. O-O Bxc3 10. Bxc3 dxe4 11. Bxf6 Qxf6 12. Bxe4 Qxb2 13. Bxc6 Rb8 14. Rb1 Qxb1 15. Qxb1 Rxb1 16. Rxb1 Be6 17. Rb7 Rd8 18. Kf1 Bxa2 19. Rxa7 Bc4+ 20. Ke1 Rc8 21. Bd7 Rd8 22. Rxc7 Be6 23. Bxe6) 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7+ Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4 *`;
 
 window.addEventListener('DOMContentLoaded', () => {
   renderBoard();
@@ -473,7 +578,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // ----------------------------------------------------
 function setupKeyboardShortcuts() {
   window.addEventListener('keydown', (e) => {
-    // If user is focused on textarea or text input, allow normal typing/cursor navigation
     const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
     if (tag === 'textarea' || tag === 'input') {
       return;
@@ -498,7 +602,9 @@ function setupKeyboardShortcuts() {
   });
 }
 
-// Render 64 Squares on the Chessboard
+// ----------------------------------------------------
+// BOARD RENDERING & INTERACTION
+// ----------------------------------------------------
 function renderBoard() {
   const boardEl = document.getElementById('chessboard');
   boardEl.innerHTML = '';
@@ -515,7 +621,6 @@ function renderBoard() {
       sqEl.className = `square ${isDark ? 'dark' : 'light'}`;
       sqEl.dataset.square = square;
 
-      // Coordinate Labels
       if (fIdx === 0) {
         const rankLbl = document.createElement('span');
         rankLbl.className = 'square-coord coord-rank';
@@ -529,15 +634,16 @@ function renderBoard() {
         sqEl.appendChild(fileLbl);
       }
 
-      // Highlights
       if (selectedSquare === square) {
         sqEl.classList.add('selected');
       }
       if (lastMoveSquares.includes(square)) {
         sqEl.classList.add('last-move');
       }
+      if (errorSquare === square) {
+        sqEl.classList.add('error-square');
+      }
 
-      // Legal Move Indicators
       const moveOption = legalMoves.find(m => m.to === square);
       if (moveOption) {
         if (moveOption.captured) {
@@ -551,7 +657,6 @@ function renderBoard() {
         }
       }
 
-      // Piece Rendering
       const piece = chess.get(square);
       if (piece) {
         const img = document.createElement('img');
@@ -571,25 +676,29 @@ function renderBoard() {
     });
   });
 
-  // Update FEN & Turn info
   document.getElementById('fen-display').innerText = chess.fen();
   const turn = chess.turn() === 'w' ? 'White to move' : 'Black to move';
-  document.getElementById('turn-badge').innerText = turn;
-  document.getElementById('turn-badge').style.color = chess.turn() === 'w' ? '#38bdf8' : '#f59e0b';
+  
+  if (isPracticeMode) {
+    const isUserTurn = chess.turn() === practiceUserSide;
+    document.getElementById('practice-status-text').innerText = isUserTurn 
+      ? `🎯 Your turn (${practiceUserSide==='w'?'White':'Black'}): Play move from memory!`
+      : `⏳ Opponent is responding...`;
+  }
 }
 
 // ----------------------------------------------------
-// PIECE INTERACTION & DRAG-AND-DROP LOGIC
+// PIECE DRAG & DROP / CLICK MOVEMENT
 // ----------------------------------------------------
 function handleSquareClick(square) {
   if (!selectedSquare) {
     const piece = chess.get(square);
     if (piece && piece.color === chess.turn()) {
+      if (isPracticeMode && chess.turn() !== practiceUserSide) return;
       selectedSquare = square;
       legalMoves = chess.moves({ square: square, verbose: true });
     }
   } else {
-    // Attempt move from selectedSquare to square
     if (selectedSquare === square) {
       selectedSquare = null;
       legalMoves = [];
@@ -603,6 +712,7 @@ function handleSquareClick(square) {
 function handleDragStart(e, square) {
   const piece = chess.get(square);
   if (piece && piece.color === chess.turn()) {
+    if (isPracticeMode && chess.turn() !== practiceUserSide) return;
     selectedSquare = square;
     legalMoves = chess.moves({ square: square, verbose: true });
     e.dataTransfer.setData('text/plain', square);
@@ -622,12 +732,16 @@ function makeMove(from, to) {
   try {
     const move = chess.move({ from, to, promotion: 'q' });
     if (move) {
+      errorSquare = null;
       lastMoveSquares = [from, to];
       selectedSquare = null;
       legalMoves = [];
       
-      // Update moveHistory and sync branch
-      recordPlayerMove(move);
+      if (isPracticeMode) {
+        handlePracticeUserMove(move);
+      } else {
+        recordPlayerMove(move);
+      }
       renderBoard();
       return true;
     }
@@ -646,32 +760,219 @@ function flipBoard() {
 }
 
 // ----------------------------------------------------
+// PRACTICE / LINE QUIZ MODE
+// ----------------------------------------------------
+function togglePracticeMode() {
+  isPracticeMode = !isPracticeMode;
+  const btn = document.getElementById('practice-btn');
+  const alertBox = document.getElementById('practice-alert');
+
+  if (isPracticeMode) {
+    btn.className = "btn btn-warning";
+    btn.innerText = "⏹ Exit Practice";
+    alertBox.style.display = "flex";
+    
+    // Determine user color from repertoire line or starting side
+    practiceUserSide = 'w';
+    goToStart();
+    
+    // If black repertoire, auto-play move 1
+    if (practiceUserSide === 'b' && chess.turn() === 'w') {
+      autoPlayOpponentMove();
+    }
+  } else {
+    btn.className = "btn btn-success";
+    btn.innerText = "🎯 Practice Line";
+    alertBox.style.display = "none";
+    errorSquare = null;
+    updateToPly(currentPly);
+  }
+}
+
+function handlePracticeUserMove(move) {
+  const lineNodes = decompiledLines[activeLineIndex] || [];
+  const expectedNode = lineNodes[currentPly]; // expected move at this ply
+
+  if (expectedNode && expectedNode.san === move.san) {
+    // Correct Move!
+    currentPly++;
+    currentTreeNode = expectedNode;
+    
+    // Update move history
+    if (currentPly >= moveHistory.length) {
+      moveHistory.push({ san: move.san, node: expectedNode, fen: chess.fen(), comment: expectedNode.comment });
+    }
+    
+    updateOpeningAndNoteDisplay();
+    renderNotationHistory();
+
+    // Check if line complete
+    if (currentPly >= lineNodes.length) {
+      document.getElementById('practice-status-text').innerText = `🎉 Repertoire Line Completed! (100% Memorized)`;
+      return;
+    }
+
+    // Auto-play opponent response after short delay
+    setTimeout(() => {
+      autoPlayOpponentMove();
+    }, 400);
+
+  } else {
+    // Wrong Move! Shake board and show explanation
+    chess.undo();
+    errorSquare = move.to;
+    
+    const boardEl = document.getElementById('chessboard');
+    boardEl.classList.remove('shake');
+    void boardEl.offsetWidth; // trigger reflow
+    boardEl.classList.add('shake');
+
+    const expectedSan = expectedNode ? expectedNode.san : "Unknown";
+    const noteHint = expectedNode && expectedNode.comment ? ` — Note: ${expectedNode.comment}` : '';
+    document.getElementById('practice-status-text').innerText = `❌ Incorrect move! Prepared response was: ${expectedSan}${noteHint}`;
+  }
+}
+
+function autoPlayOpponentMove() {
+  if (!isPracticeMode) return;
+  const lineNodes = decompiledLines[activeLineIndex] || [];
+  const nextOpponentNode = lineNodes[currentPly];
+
+  if (nextOpponentNode) {
+    try {
+      const oppMove = chess.move(nextOpponentNode.san);
+      if (oppMove) {
+        lastMoveSquares = [oppMove.from, oppMove.to];
+        currentPly++;
+        currentTreeNode = nextOpponentNode;
+        if (currentPly >= moveHistory.length) {
+          moveHistory.push({ san: oppMove.san, node: nextOpponentNode, fen: chess.fen(), comment: nextOpponentNode.comment });
+        }
+        updateOpeningAndNoteDisplay();
+        renderNotationHistory();
+        renderBoard();
+      }
+    } catch (e) {
+      console.error("Opponent autoplay error", e);
+    }
+  }
+}
+
+// ----------------------------------------------------
+// HOVER PREVIEW SYSTEM
+// ----------------------------------------------------
+let isHoverPreviewing = false;
+
+function previewCandidateMove(childNode) {
+  if (isPracticeMode) return;
+  if (!childNode || !childNode.fen) return;
+  isHoverPreviewing = true;
+  
+  const previewChess = new Chess(childNode.fen);
+  
+  let moveSquares = [];
+  try {
+    const tempCurrent = new Chess(chess.fen());
+    const legal = tempCurrent.moves({ verbose: true });
+    const moveMatch = legal.find(m => m.san === childNode.san);
+    if (moveMatch) {
+      moveSquares = [moveMatch.from, moveMatch.to];
+    }
+  } catch (e) {}
+
+  renderBoardCustom(previewChess, moveSquares, `👁️ Previewing: ${childNode.san}`);
+}
+
+function cancelPreviewCandidateMove() {
+  if (!isHoverPreviewing) return;
+  isHoverPreviewing = false;
+  renderBoard();
+  document.getElementById('move-indicator').style.color = '#38bdf8';
+  document.getElementById('move-indicator').innerText = currentPly === 0 ? "Starting Position" : `Move ${Math.ceil(currentPly/2)}${currentPly%2===0?'...':'.'} ${moveHistory[currentPly]?.san}`;
+}
+
+function renderBoardCustom(customChess, customLastMoves = [], indicatorText = null) {
+  const boardEl = document.getElementById('chessboard');
+  boardEl.innerHTML = '';
+
+  const displayRanks = isFlipped ? [...RANKS].reverse() : RANKS;
+  const displayFiles = isFlipped ? [...FILES].reverse() : FILES;
+
+  displayRanks.forEach((rank, rIdx) => {
+    displayFiles.forEach((file, fIdx) => {
+      const square = `${file}${rank}`;
+      const isDark = (rIdx + fIdx) % 2 === 1;
+
+      const sqEl = document.createElement('div');
+      sqEl.className = `square ${isDark ? 'dark' : 'light'}`;
+      sqEl.dataset.square = square;
+
+      if (fIdx === 0) {
+        const rankLbl = document.createElement('span');
+        rankLbl.className = 'square-coord coord-rank';
+        rankLbl.innerText = rank;
+        sqEl.appendChild(rankLbl);
+      }
+      if (rIdx === 7) {
+        const fileLbl = document.createElement('span');
+        fileLbl.className = 'square-coord coord-file';
+        fileLbl.innerText = file;
+        sqEl.appendChild(fileLbl);
+      }
+
+      if (customLastMoves.includes(square)) {
+        sqEl.classList.add('last-move');
+      }
+
+      const piece = customChess.get(square);
+      if (piece) {
+        const img = document.createElement('img');
+        img.className = 'piece-img';
+        img.src = PIECE_SVGS[piece.color][piece.type];
+        img.draggable = false;
+        sqEl.appendChild(img);
+      }
+
+      boardEl.appendChild(sqEl);
+    });
+  });
+
+  document.getElementById('fen-display').innerText = customChess.fen();
+  if (indicatorText) {
+    document.getElementById('move-indicator').innerText = indicatorText;
+    document.getElementById('move-indicator').style.color = '#f59e0b';
+  }
+}
+
+// ----------------------------------------------------
 // PGN MULTI-VARIATION TREE DECOMPILER
 // ----------------------------------------------------
 class TreeNode {
-  constructor(san = null, parent = null, ply = 0, fen = "") {
+  constructor(san = null, parent = null, ply = 0, fen = "", comment = "") {
     this.san = san;
     this.parent = parent;
     this.children = [];
-    this.comment = "";
+    this.comment = comment;
     this.ply = ply;
     this.fen = fen;
   }
 }
 
-function decompilePgn() {
-  const pgnText = document.getElementById('pgn-input').value.trim();
+function decompilePgn(rawText) {
+  const pgnText = rawText || document.getElementById('pgn-input').value.trim();
   if (!pgnText) {
     alert("Please enter or paste a PGN string.");
     return;
   }
 
+  originalPgnRaw = pgnText;
+
   // 1. Strip headers
   let body = pgnText.replace(/\[.*?\]/g, '').trim();
   body = body.replace(/(\*|1-0|0-1|1\/2-1\/2)\s*$/, '').trim();
 
-  // 2. Tokenize moves and parenthetical variations
-  const tokenPattern = /(\()|(\))|(\{.*?\})|(\$\d+)|([0-9]+\.+)|([a-zA-Z0-9+#=_-]+)/g;
+  // 2. Tokenize moves, comments {...}, and parenthetical variations (...)
+  const tokenPattern = /(\()|(\))|(\{[\s\S]*?\})|(\$\d+)|([0-9]+\.+)|([a-zA-Z0-9+#=_-]+)/g;
   let tokens = [];
   let match;
 
@@ -697,7 +998,7 @@ function decompilePgn() {
     } else if (token.type === 'close_paren') {
       if (stack.length > 1) stack.pop();
     } else if (token.type === 'comment' && token.val) {
-      if (curr) curr.comment = token.val.replace(/[{}]/g, '').trim();
+      if (curr) curr.comment = token.val.replace(/^\{|\}$/g, '').trim();
     } else if (token.type === 'san' && token.val) {
       const branchSim = new Chess(curr.fen);
       try {
@@ -766,16 +1067,21 @@ function renderLinesList() {
   });
 }
 
-function formatLineMoves(nodes) {
+function formatLineMoves(nodes, includeComments = false) {
   let res = [];
   nodes.forEach((node, idx) => {
     const ply = idx + 1;
     const moveNum = Math.ceil(ply / 2);
+    let str = "";
     if (ply % 2 === 1) {
-      res.push(`${moveNum}. ${node.san}`);
+      str = `${moveNum}. ${node.san}`;
     } else {
-      res.push(node.san);
+      str = node.san;
     }
+    if (includeComments && node.comment) {
+      str += ` {${node.comment}}`;
+    }
+    res.push(str);
   });
   return res.join(' ');
 }
@@ -785,10 +1091,71 @@ function classifyOpeningName(moveStr, index) {
   if (moveStr.includes('Bb4')) return 'Scotch: Mieses / Bb4+';
   if (moveStr.includes('Nxd4 5. Qxd4')) return 'Scotch: 4...Nxd4 5. Qxd4';
   if (moveStr.includes('3... d6')) return 'Scotch: 3...d6 Philidor';
-  if (moveStr.includes('3... Nf6')) return 'Scotch: 3...Nf6 Counter';
+  if (moveStr.includes('3... Nf6')) return 'Scotch: Two Knights Counter';
   if (moveStr.includes('3... f6')) return 'Scotch: 3...f6';
   if (moveStr.includes('3... d5')) return 'Scotch: 3...d5 Gambit';
   return `Variation ${index}`;
+}
+
+// ----------------------------------------------------
+// OPENING & NOTE MANAGEMENT
+// ----------------------------------------------------
+async function updateOpeningAndNoteDisplay() {
+  const curr = moveHistory[currentPly];
+  const fen = curr ? curr.fen : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+  // Display Note
+  const noteInput = document.getElementById('move-note-input');
+  noteInput.value = (curr && curr.node && curr.node.comment) ? curr.node.comment : "";
+
+  // Query Lichess / Masters Opening API for live ECO & Opening Name
+  fetchOpeningFromLichess(fen);
+}
+
+let lichessCache = {};
+async function fetchOpeningFromLichess(fen) {
+  const normalizedFen = fen.split(' ').slice(0, 4).join(' ');
+  if (lichessCache[normalizedFen]) {
+    applyOpeningData(lichessCache[normalizedFen]);
+    return;
+  }
+
+  try {
+    const res = await fetch(`https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(fen)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.opening) {
+        lichessCache[normalizedFen] = data.opening;
+        applyOpeningData(data.opening);
+        return;
+      }
+    }
+  } catch (e) {}
+
+  // Fallback heuristic
+  const movesSoFar = moveHistory.slice(1, currentPly + 1).map(m => m.san).join(' ');
+  let name = classifyOpeningName(movesSoFar, activeLineIndex + 1);
+  let eco = movesSoFar.includes('d4') ? 'C45' : 'C44';
+  applyOpeningData({ name, eco });
+}
+
+function applyOpeningData(op) {
+  document.getElementById('opening-name-text').innerText = op.name || 'Scotch Game';
+  document.getElementById('eco-code-text').innerText = op.eco || 'C45';
+}
+
+function onNoteTyped() {
+  const text = document.getElementById('move-note-input').value;
+  const curr = moveHistory[currentPly];
+  if (curr && curr.node) {
+    curr.node.comment = text;
+    curr.comment = text;
+  }
+}
+
+function saveCurrentNote() {
+  onNoteTyped();
+  alert('Note saved for current position! It will be preserved in PGN exports.');
 }
 
 // ----------------------------------------------------
@@ -805,9 +1172,9 @@ function selectLine(index) {
 }
 
 function buildHistory(nodes) {
-  moveHistory = [{ san: 'START', node: treeRoot, fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" }];
+  moveHistory = [{ san: 'START', node: treeRoot, fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", comment: "" }];
   for (let n of nodes) {
-    moveHistory.push({ san: n.san, node: n, fen: n.fen });
+    moveHistory.push({ san: n.san, node: n, fen: n.fen, comment: n.comment });
   }
 }
 
@@ -816,14 +1183,18 @@ function updateToPly(ply) {
   const curr = moveHistory[ply];
   currentTreeNode = curr ? curr.node : treeRoot;
 
-  chess = new Chess(curr.fen);
+  chess = new Chess(curr ? curr.fen : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   selectedSquare = null;
   legalMoves = [];
   lastMoveSquares = [];
+  errorSquare = null;
 
   renderBoard();
 
+  document.getElementById('move-indicator').style.color = '#38bdf8';
   document.getElementById('move-indicator').innerText = ply === 0 ? "Starting Position" : `Move ${Math.ceil(ply/2)}${ply%2===0?'...':'.'} ${curr.san}`;
+  
+  updateOpeningAndNoteDisplay();
   renderNotationHistory();
   renderCandidateBranches();
 }
@@ -845,92 +1216,11 @@ function renderNotationHistory() {
     const moveSpan = document.createElement('span');
     moveSpan.className = `notation-move ${i === currentPly ? 'active' : ''}`;
     moveSpan.innerText = moveHistory[i].san;
+    if (moveHistory[i].comment) {
+      moveSpan.title = `Note: ${moveHistory[i].comment}`;
+    }
     moveSpan.onclick = () => updateToPly(i);
     container.appendChild(moveSpan);
-  }
-}
-
-// ----------------------------------------------------
-// HOVER PREVIEW SYSTEM
-// ----------------------------------------------------
-let isHoverPreviewing = false;
-
-function previewCandidateMove(childNode) {
-  if (!childNode || !childNode.fen) return;
-  isHoverPreviewing = true;
-  
-  const previewChess = new Chess(childNode.fen);
-  
-  // Find move squares to highlight
-  let moveSquares = [];
-  try {
-    const tempCurrent = new Chess(chess.fen());
-    const legal = tempCurrent.moves({ verbose: true });
-    const moveMatch = legal.find(m => m.san === childNode.san);
-    if (moveMatch) {
-      moveSquares = [moveMatch.from, moveMatch.to];
-    }
-  } catch (e) {}
-
-  renderBoardCustom(previewChess, moveSquares, `👁️ Previewing Move: ${childNode.san}`);
-}
-
-function cancelPreviewCandidateMove() {
-  if (!isHoverPreviewing) return;
-  isHoverPreviewing = false;
-  renderBoard();
-}
-
-function renderBoardCustom(customChess, customLastMoves = [], indicatorText = null) {
-  const boardEl = document.getElementById('chessboard');
-  boardEl.innerHTML = '';
-
-  const displayRanks = isFlipped ? [...RANKS].reverse() : RANKS;
-  const displayFiles = isFlipped ? [...FILES].reverse() : FILES;
-
-  displayRanks.forEach((rank, rIdx) => {
-    displayFiles.forEach((file, fIdx) => {
-      const square = `${file}${rank}`;
-      const isDark = (rIdx + fIdx) % 2 === 1;
-
-      const sqEl = document.createElement('div');
-      sqEl.className = `square ${isDark ? 'dark' : 'light'}`;
-      sqEl.dataset.square = square;
-
-      if (fIdx === 0) {
-        const rankLbl = document.createElement('span');
-        rankLbl.className = 'square-coord coord-rank';
-        rankLbl.innerText = rank;
-        sqEl.appendChild(rankLbl);
-      }
-      if (rIdx === 7) {
-        const fileLbl = document.createElement('span');
-        fileLbl.className = 'square-coord coord-file';
-        fileLbl.innerText = file;
-        sqEl.appendChild(fileLbl);
-      }
-
-      if (customLastMoves.includes(square)) {
-        sqEl.classList.add('last-move');
-      }
-
-      const piece = customChess.get(square);
-      if (piece) {
-        const img = document.createElement('img');
-        img.className = 'piece-img';
-        img.src = PIECE_SVGS[piece.color][piece.type];
-        img.draggable = false;
-        sqEl.appendChild(img);
-      }
-
-      boardEl.appendChild(sqEl);
-    });
-  });
-
-  document.getElementById('fen-display').innerText = customChess.fen();
-  if (indicatorText) {
-    document.getElementById('move-indicator').innerText = indicatorText;
-    document.getElementById('move-indicator').style.color = '#f59e0b';
   }
 }
 
@@ -959,7 +1249,6 @@ function renderCandidateBranches() {
     }
     countLeaves(child);
 
-    // Hover Preview & Leave Revert
     btn.onmouseenter = () => previewCandidateMove(child);
     btn.onmouseleave = () => cancelPreviewCandidateMove();
     btn.onclick = () => {
@@ -967,10 +1256,12 @@ function renderCandidateBranches() {
       branchInto(child);
     };
 
+    const noteSnippet = child.comment ? ` — "${child.comment}"` : '';
+
     btn.innerHTML = `
       <div>
         <div class="candidate-move">${child.san}</div>
-        <div style="font-size:0.72rem; color:#94a3b8;">Continuation: ${child.children.length > 0 ? child.children[0].san : 'End'}</div>
+        <div style="font-size:0.72rem; color:#94a3b8;">${child.children.length > 0 ? 'Cont: ' + child.children[0].san : 'End of line'}${noteSnippet}</div>
       </div>
       <div class="candidate-meta">
         <div style="color:var(--accent); font-weight:700;">${sublineCount} ${sublineCount===1?'Line':'Lines'}</div>
@@ -1002,7 +1293,7 @@ function branchInto(targetChildNode) {
 }
 
 function recordPlayerMove(move) {
-  // Check if player's move matches a candidate branch
+  // If move matches an existing branch child, branch into it
   if (currentTreeNode && currentTreeNode.children) {
     const matchChild = currentTreeNode.children.find(c => c.san === move.san);
     if (matchChild) {
@@ -1010,12 +1301,32 @@ function recordPlayerMove(move) {
       return;
     }
   }
-  // Otherwise append as a free exploration move
+
+  // Otherwise, dynamically add new branch to the tree!
   const newNode = new TreeNode(move.san, currentTreeNode, currentPly + 1, chess.fen());
+  if (currentTreeNode) {
+    currentTreeNode.children.push(newNode);
+  }
+
   moveHistory = moveHistory.slice(0, currentPly + 1);
-  moveHistory.push({ san: move.san, node: newNode, fen: chess.fen() });
+  moveHistory.push({ san: move.san, node: newNode, fen: chess.fen(), comment: "" });
   currentPly++;
   currentTreeNode = newNode;
+
+  // Re-extract decompiled lines to include new branch
+  decompiledLines = [];
+  function dfs(node, path) {
+    if (!node.children || node.children.length === 0) {
+      if (path.length > 0) decompiledLines.push(path);
+      return;
+    }
+    for (let child of node.children) dfs(child, [...path, child]);
+  }
+  dfs(treeRoot, []);
+  activeLineIndex = decompiledLines.length - 1;
+
+  renderLinesList();
+  updateOpeningAndNoteDisplay();
   renderNotationHistory();
   renderCandidateBranches();
 }
@@ -1038,7 +1349,7 @@ function goToEnd() { cancelPreviewCandidateMove(); updateToPly(moveHistory.lengt
 // ----------------------------------------------------
 function loadSampleScotch() {
   document.getElementById('pgn-input').value = SAMPLE_SCOTCH_PGN;
-  decompilePgn();
+  decompilePgn(SAMPLE_SCOTCH_PGN);
 }
 
 function handleFileUpload(e) {
@@ -1046,22 +1357,33 @@ function handleFileUpload(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (event) => {
-    document.getElementById('pgn-input').value = event.target.result;
-    decompilePgn();
+    const text = event.target.result;
+    document.getElementById('pgn-input').value = text;
+    decompilePgn(text);
   };
   reader.readAsText(file);
+}
+
+function revertToOriginalPgn() {
+  if (!originalPgnRaw) return;
+  if (confirm("Revert all modifications and reload original imported PGN?")) {
+    decompilePgn(originalPgnRaw);
+  }
 }
 
 function exportCurrentLine() {
   if (decompiledLines.length === 0) return;
   const lineNodes = decompiledLines[activeLineIndex];
-  const movesStr = formatLineMoves(lineNodes);
-  const pgnExport = `[Event "Decompiled Line ${activeLineIndex + 1}"]\n[Site "RepertoireBuilder"]\n[Result "*"]\n\n${movesStr} *`;
+  const movesStr = formatLineMoves(lineNodes, true); // includes {comments}
+  const opName = document.getElementById('opening-name-text').innerText;
+  const eco = document.getElementById('eco-code-text').innerText;
+
+  const pgnExport = `[Event "${opName}"]\n[ECO "${eco}"]\n[Site "RepertoireBuilder"]\n[Result "*"]\n\n${movesStr} *`;
   
   const blob = new Blob([pgnExport], { type: "text/plain" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `repertoire_line_${activeLineIndex + 1}.pgn`;
+  a.download = `repertoire_${eco}_line_${activeLineIndex + 1}.pgn`;
   a.click();
 }
 </script>
