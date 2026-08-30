@@ -850,6 +850,90 @@ function renderNotationHistory() {
   }
 }
 
+// ----------------------------------------------------
+// HOVER PREVIEW SYSTEM
+// ----------------------------------------------------
+let isHoverPreviewing = false;
+
+function previewCandidateMove(childNode) {
+  if (!childNode || !childNode.fen) return;
+  isHoverPreviewing = true;
+  
+  const previewChess = new Chess(childNode.fen);
+  
+  // Find move squares to highlight
+  let moveSquares = [];
+  try {
+    const tempCurrent = new Chess(chess.fen());
+    const legal = tempCurrent.moves({ verbose: true });
+    const moveMatch = legal.find(m => m.san === childNode.san);
+    if (moveMatch) {
+      moveSquares = [moveMatch.from, moveMatch.to];
+    }
+  } catch (e) {}
+
+  renderBoardCustom(previewChess, moveSquares, `👁️ Previewing Move: ${childNode.san}`);
+}
+
+function cancelPreviewCandidateMove() {
+  if (!isHoverPreviewing) return;
+  isHoverPreviewing = false;
+  renderBoard();
+}
+
+function renderBoardCustom(customChess, customLastMoves = [], indicatorText = null) {
+  const boardEl = document.getElementById('chessboard');
+  boardEl.innerHTML = '';
+
+  const displayRanks = isFlipped ? [...RANKS].reverse() : RANKS;
+  const displayFiles = isFlipped ? [...FILES].reverse() : FILES;
+
+  displayRanks.forEach((rank, rIdx) => {
+    displayFiles.forEach((file, fIdx) => {
+      const square = `${file}${rank}`;
+      const isDark = (rIdx + fIdx) % 2 === 1;
+
+      const sqEl = document.createElement('div');
+      sqEl.className = `square ${isDark ? 'dark' : 'light'}`;
+      sqEl.dataset.square = square;
+
+      if (fIdx === 0) {
+        const rankLbl = document.createElement('span');
+        rankLbl.className = 'square-coord coord-rank';
+        rankLbl.innerText = rank;
+        sqEl.appendChild(rankLbl);
+      }
+      if (rIdx === 7) {
+        const fileLbl = document.createElement('span');
+        fileLbl.className = 'square-coord coord-file';
+        fileLbl.innerText = file;
+        sqEl.appendChild(fileLbl);
+      }
+
+      if (customLastMoves.includes(square)) {
+        sqEl.classList.add('last-move');
+      }
+
+      const piece = customChess.get(square);
+      if (piece) {
+        const img = document.createElement('img');
+        img.className = 'piece-img';
+        img.src = PIECE_SVGS[piece.color][piece.type];
+        img.draggable = false;
+        sqEl.appendChild(img);
+      }
+
+      boardEl.appendChild(sqEl);
+    });
+  });
+
+  document.getElementById('fen-display').innerText = customChess.fen();
+  if (indicatorText) {
+    document.getElementById('move-indicator').innerText = indicatorText;
+    document.getElementById('move-indicator').style.color = '#f59e0b';
+  }
+}
+
 function renderCandidateBranches() {
   const container = document.getElementById('candidate-branches');
   const countEl = document.getElementById('candidate-count');
@@ -875,7 +959,13 @@ function renderCandidateBranches() {
     }
     countLeaves(child);
 
-    btn.onclick = () => branchInto(child);
+    // Hover Preview & Leave Revert
+    btn.onmouseenter = () => previewCandidateMove(child);
+    btn.onmouseleave = () => cancelPreviewCandidateMove();
+    btn.onclick = () => {
+      cancelPreviewCandidateMove();
+      branchInto(child);
+    };
 
     btn.innerHTML = `
       <div>
@@ -934,13 +1024,14 @@ function recordPlayerMove(move) {
 // NAVIGATION CONTROLS
 // ----------------------------------------------------
 function stepMove(delta) {
+  cancelPreviewCandidateMove();
   const newPly = currentPly + delta;
   if (newPly >= 0 && newPly < moveHistory.length) {
     updateToPly(newPly);
   }
 }
-function goToStart() { updateToPly(0); }
-function goToEnd() { updateToPly(moveHistory.length - 1); }
+function goToStart() { cancelPreviewCandidateMove(); updateToPly(0); }
+function goToEnd() { cancelPreviewCandidateMove(); updateToPly(moveHistory.length - 1); }
 
 // ----------------------------------------------------
 // EXPORT & SAMPLE LOADERS
