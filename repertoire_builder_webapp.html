@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>♟️ Repertoire Builder & PGN Decompiler</title>
-<!-- Include Chess.js from CDN -->
+<!-- Include Chess.js for move validation & FEN generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <style>
   :root {
@@ -40,6 +40,27 @@
   }
   header h1 { font-size: 1.15rem; display: flex; align-items: center; gap: 10px; font-weight: 700; color: #fff; }
   header .badge { background: #0284c7; color: #fff; font-size: 0.72rem; padding: 3px 9px; border-radius: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .shortcuts-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: #1c2636;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kbd {
+    background: #283548;
+    color: #e2e8f0;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.72rem;
+    border: 1px solid #3b4c66;
+  }
 
   .main-layout {
     display: grid;
@@ -302,6 +323,17 @@
 
 <header>
   <h1>♟️ Repertoire Builder & PGN Decompiler <span class="badge">Movable Chess Board</span></h1>
+  
+  <!-- Keyboard Shortcut Indicators -->
+  <div class="shortcuts-hint">
+    <span>Navigation:</span>
+    <span class="kbd">◀ Left</span> Prev
+    <span class="kbd">Right ▶</span> Next
+    <span class="kbd">▲ Up</span> Start
+    <span class="kbd">▼ Down</span> End
+    <span class="kbd">F</span> Flip
+  </div>
+
   <div style="display:flex; gap:8px;">
     <button class="btn btn-success" onclick="loadSampleScotch()">⚡ Load Scotch PGN</button>
     <button class="btn" onclick="flipBoard()">🔄 Flip Board</button>
@@ -341,10 +373,10 @@
       <div id="chessboard" class="chessboard"></div>
       
       <div class="board-controls">
-        <button class="btn" onclick="goToStart()" title="First Move">|&lt;</button>
-        <button class="btn" onclick="stepMove(-1)" title="Previous Move">&lt;</button>
-        <button class="btn" onclick="stepMove(1)" title="Next Move">&gt;</button>
-        <button class="btn" onclick="goToEnd()" title="Last Move">&gt;|</button>
+        <button class="btn" onclick="goToStart()" title="First Move (Up Arrow)">|&lt;</button>
+        <button class="btn" onclick="stepMove(-1)" title="Previous Move (Left Arrow)">&lt;</button>
+        <button class="btn" onclick="stepMove(1)" title="Next Move (Right Arrow)">&gt;</button>
+        <button class="btn" onclick="goToEnd()" title="Last Move (Down Arrow)">&gt;|</button>
       </div>
 
       <div style="text-align:center;">
@@ -428,12 +460,43 @@ const SAMPLE_SCOTCH_PGN = `[Event "white Repertoire"]
 [Black "N/A"]
 [Result "*"]
 
-1. e4 e5 2. Nf3 Nc6 3. d4 exd4 (3... d6 4. dxe5 dxe5 5. Qxd8+ Nxd8 (5... Kxd8 6. Nc3 Bd7 7. Bc4) 6. Nxe5 Nf6 7. Nc3 Bb4 8. f3 O-O 9. Nd3 Bxc3+ 10. bxc3 b6 11. Nf4 Re8 12. a4 Ne6 13. Kf2 a5 14. g4) (3... Nf6 4. d5 Nd4 5. Nxe5 d6 6. Nc4 c5 7. c3 Nb5 8. a4 Nc7 9. Bd3 Be7 10. O-O) (3... f6 4. Bc4 exd4 5. O-O Bc5 6. c3 dxc3 7. Bxg8 Rxg8 8. Qd5) (3... d5 4. Nxe5 Nxe5 5. dxe5 d4 6. c3 Bc5 7. Bc4 Ne7 8. e6 Bxe6 9. Bxe6 fxe6 10. Qh5+ Kf8 11. Qxc5) (3... Bb4+ 4. c3 Ba5 5. a4 Nf6 6. b4 Bb6 7. a5) (3... Nxd4 4. Nxd4 exd4 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7+ Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4) 4. Nxd4 Nxd4 (4... Bc5 5. Nb3 Bb6 6. Qe2 d6 7. Nc3 Nf6 8. Be3 O-O 9. O-O-O Re8 10. f3 Be6 11. Kb1 Qe7 12. g4 Nd7 13. h4 Nde5 14. g5 Bc4 15. Qf2 Bxf1 16. Qxf1 Bxe3 17. Nd5 Qe6 18. Nxe3 a5 19. a3 b5 20. Nd5 a4 21. Nd2) (4... Nf6 5. Nc3 Bb4 (5... Nxd4 6. Qxd4 d6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) 6. Nxc6 bxc6 7. Bd3 d5 8. Bd2 O-O 9. O-O Bxc3 10. Bxc3 dxe4 11. Bxf6 Qxf6 12. Bxe4 Qxb2 13. Bxc6 Rb8 14. Rb1 Qxb1 15. Qxb1 Rxb1 16. Rxb1 Be6 17. Rb7 Rd8 18. Kf1 Bxa2 19. Rxa7 Bc4+ 20. Ke1 Rc8 21. Bd7 Rd8 22. Rxc7 Be6 23. Bxe6) 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7 Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4 *`;
+1. e4 e5 2. Nf3 Nc6 3. d4 exd4 (3... d6 4. dxe5 dxe5 5. Qxd8+ Nxd8 (5... Kxd8 6. Nc3 Bd7 7. Bc4) 6. Nxe5 Nf6 7. Nc3 Bb4 8. f3 O-O 9. Nd3 Bxc3+ 10. bxc3 b6 11. Nf4 Re8 12. a4 Ne6 13. Kf2 a5 14. g4) (3... Nf6 4. d5 Nd4 5. Nxe5 d6 6. Nc4 c5 7. c3 Nb5 8. a4 Nc7 9. Bd3 Be7 10. O-O) (3... f6 4. Bc4 exd4 5. O-O Bc5 6. c3 dxc3 7. Bxg8 Rxg8 8. Qd5) (3... d5 4. Nxe5 Nxe5 5. dxe5 d4 6. c3 Bc5 7. Bc4 Ne7 8. e6 Bxe6 9. Bxe6 fxe6 10. Qh5+ Kf8 11. Qxc5) (3... Bb4+ 4. c3 Ba5 5. a4 Nf6 6. b4 Bb6 7. a5) (3... Nxd4 4. Nxd4 exd4 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7 psychological 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4) 4. Nxd4 Nxd4 (4... Bc5 5. Nb3 Bb6 6. Qe2 d6 7. Nc3 Nf6 8. Be3 O-O 9. O-O-O Re8 10. f3 Be6 11. Kb1 Qe7 12. g4 Nd7 13. h4 Nde5 14. g5 Bc4 15. Qf2 Bxf1 16. Qxf1 Bxe3 17. Nd5 Qe6 18. Nxe3 a5 19. a3 b5 20. Nd5 a4 21. Nd2) (4... Nf6 5. Nc3 Bb4 (5... Nxd4 6. Qxd4 d6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) 6. Nxc6 bxc6 7. Bd3 d5 8. Bd2 O-O 9. O-O Bxc3 10. Bxc3 dxe4 11. Bxf6 Qxf6 12. Bxe4 Qxb2 13. Bxc6 Rb8 14. Rb1 Qxb1 15. Qxb1 Rxb1 16. Rxb1 Be6 17. Rb7 Rd8 18. Kf1 Bxa2 19. Rxa7 Bc4+ 20. Ke1 Rc8 21. Bd7 Rd8 22. Rxc7 Be6 23. Bxe6) 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7+ Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4 *`;
 
 window.addEventListener('DOMContentLoaded', () => {
   renderBoard();
   loadSampleScotch();
+  setupKeyboardShortcuts();
 });
+
+// ----------------------------------------------------
+// KEYBOARD ARROW KEY NAVIGATION
+// ----------------------------------------------------
+function setupKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    // If user is focused on textarea or text input, allow normal typing/cursor navigation
+    const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+    if (tag === 'textarea' || tag === 'input') {
+      return;
+    }
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      stepMove(-1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      stepMove(1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      goToStart();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      goToEnd();
+    } else if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      flipBoard();
+    }
+  });
+}
 
 // Render 64 Squares on the Chessboard
 function renderBoard() {
