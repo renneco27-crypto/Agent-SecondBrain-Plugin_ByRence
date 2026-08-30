@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PGN Repertoire Decompiler & Line Explorer</title>
+<style>
+  :root {
+    --bg-dark: #121418;
+    --bg-card: #1c2026;
+    --bg-card-hover: #262c36;
+    --border: #2d3542;
+    --text-main: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #388bfd;
+    --success: #3fb950;
+    --warning: #d29922;
+    --sq-light: #f0d9b5;
+    --sq-dark: #b58863;
+    --sq-highlight: rgba(88, 166, 255, 0.5);
+    --sq-last-move: rgba(210, 153, 34, 0.45);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  body { background: var(--bg-dark); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  header {
+    background: #161b22;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 1.15rem; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  header .badge { background: #238636; color: #fff; font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
+
+  .main-container {
+    display: grid;
+    grid-template-columns: 460px 1fr 380px;
+    height: calc(100vh - 58px);
+    overflow: hidden;
+  }
+
+  /* Left Panel: PGN Input & Line Decompiler */
+  .panel {
+    background: var(--bg-card);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #161b22;
+  }
+  .panel-body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+
+  textarea {
+    width: 100%;
+    height: 110px;
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-main);
+    padding: 10px;
+    font-size: 0.8rem;
+    font-family: monospace;
+    resize: vertical;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+
+  .btn-group { display: flex; gap: 8px; }
+  .btn {
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: #21262d;
+    color: var(--text-main);
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn:hover { background: var(--bg-card-hover); border-color: #8b949e; }
+  .btn-primary { background: #238636; border-color: #2ea043; color: white; }
+  .btn-primary:hover { background: #2ea043; }
+
+  /* Decompiled Lines List */
+  .lines-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .line-card {
+    background: #14181f;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .line-card:hover { border-color: var(--accent); background: #1a2230; }
+  .line-card.active { border-color: var(--accent); background: #1f2b3e; }
+  .line-header { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; }
+  .line-title { font-weight: 600; color: var(--accent); font-size: 0.85rem; }
+  .line-moves { font-size: 0.8rem; color: #c9d1d9; line-height: 1.4; word-break: break-word; font-family: monospace; }
+
+  /* Center Panel: Interactive Chessboard & Move Tree Navigation */
+  .center-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #0d1117;
+    padding: 20px;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .board-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .chessboard {
+    width: 480px;
+    height: 480px;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    border: 3px solid #30363d;
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    user-select: none;
+    position: relative;
+  }
+
+  .square {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+  }
+  .square.light { background: var(--sq-light); color: var(--sq-dark); }
+  .square.dark { background: var(--sq-dark); color: var(--sq-light); }
+  .square.highlight { background: var(--sq-highlight) !important; }
+  .square.last-move { background: var(--sq-last-move) !important; }
+  .square.possible-move::after {
+    content: '';
+    width: 18px;
+    height: 18px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 50%;
+    position: absolute;
+  }
+  .square-label {
+    position: absolute;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+  }
+  .label-rank { top: 2px; left: 2px; }
+  .label-file { bottom: 2px; right: 2px; }
+
+  .piece {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    cursor: grab;
+    z-index: 2;
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .controls button {
+    width: 40px;
+    height: 36px;
+    font-size: 1.1rem;
+  }
+
+  /* Right Panel: Branching Tree & Move Candidates */
+  .right-panel {
+    background: var(--bg-card);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .branch-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .branch-title {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .candidate-btn {
+    width: 100%;
+    text-align: left;
+    background: #14181f;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    color: var(--text-main);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.15s;
+  }
+  .candidate-btn:hover {
+    border-color: var(--accent);
+    background: #1a2230;
+    transform: translateX(3px);
+  }
+  .candidate-move { font-weight: 700; font-size: 1rem; color: #58a6ff; }
+  .candidate-meta { font-size: 0.75rem; color: var(--text-muted); text-align: right; }
+
+  .notation-view {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    line-height: 1.7;
+  }
+  .notation-move {
+    padding: 2px 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-block;
+  }
+  .notation-move:hover { background: #262c36; color: var(--accent); }
+  .notation-move.active { background: #1f6feb; color: white; font-weight: bold; }
+  .notation-move.variation { color: var(--text-muted); font-style: italic; }
+
+  .fen-box {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 0.75rem;
+    font-family: monospace;
+    word-break: break-all;
+    margin-top: 10px;
+    color: #8b949e;
+    user-select: all;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>♟️ PGN Repertoire Decompiler & Line Explorer <span class="badge">Repertoire Engine</span></h1>
+  <div style="display:flex; gap:10px;">
+    <button class="btn" onclick="loadSampleScotch()">📂 Load Scotch Opening PGN</button>
+    <button class="btn btn-primary" onclick="exportCurrentLine()">💾 Export Active Line</button>
+  </div>
+</header>
+
+<div class="main-container">
+  <!-- Left: PGN Input & Decompiled Lines -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>📥 PGN Repertoire Source</span>
+      <span id="line-count-badge" style="font-size:0.75rem; color:var(--accent);">0 Lines Decompiled</span>
+    </div>
+    <div class="panel-body">
+      <textarea id="pgn-input" placeholder="Paste full repertoire PGN with variations (...) here..."></textarea>
+      <div class="btn-group">
+        <button class="btn btn-primary" style="flex:1;" onclick="decompilePgn()">⚡ Decompile to Lines</button>
+        <button class="btn" onclick="document.getElementById('file-upload').click()">📁 Upload .pgn</button>
+        <input type="file" id="file-upload" accept=".pgn" style="display:none" onchange="handleFileUpload(event)">
+      </div>
+
+      <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-top:8px;">
+        DECOMPILED VARIATIONS (<span id="total-lines-count">0</span>)
+      </div>
+      <div class="lines-container" id="lines-list">
+        <div style="color:var(--text-muted); font-size:0.8rem; text-align:center; padding:20px;">
+          Load or paste a PGN above to decompile into playable branches.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: Chessboard & Navigation -->
+  <div class="center-panel">
+    <div class="board-wrapper">
+      <div id="chessboard" class="chessboard"></div>
+      
+      <div class="controls">
+        <button class="btn" onclick="goToStart()" title="Start">|&lt;</button>
+        <button class="btn" onclick="stepMove(-1)" title="Previous">&lt;</button>
+        <button class="btn" onclick="stepMove(1)" title="Next">&gt;</button>
+        <button class="btn" onclick="goToEnd()" title="End">&gt;|</button>
+      </div>
+
+      <div style="text-align:center; margin-top:4px;">
+        <span id="move-indicator" style="font-weight:600; font-size:0.95rem; color:var(--accent);">Starting Position</span>
+      </div>
+      <div class="fen-box" id="fen-display">rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1</div>
+    </div>
+  </div>
+
+  <!-- Right: Branch Picker & Live Tree -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <span>🌳 Repertoire Branch Selector</span>
+      <span id="turn-badge" style="font-size:0.75rem; color:#3fb950;">White to move</span>
+    </div>
+
+    <!-- Candidate Branch Choices at Current Node -->
+    <div class="branch-section">
+      <div class="branch-title">
+        <span>Available Branches at this position</span>
+        <span id="candidate-count" style="color:var(--accent);">0</span>
+      </div>
+      <div id="candidate-branches">
+        <div style="color:var(--text-muted); font-size:0.8rem;">No branches available.</div>
+      </div>
+    </div>
+
+    <!-- Move Notation History -->
+    <div class="panel-header" style="border-top: 1px solid var(--border);">
+      <span>📜 Active Line Moves</span>
+    </div>
+    <div class="notation-view" id="notation-history"></div>
+  </div>
+</div>
+
+<script>
+// Unicode Chess Pieces
+const PIECES = {
+  'K': '♔', 'Q': '♕', 'R': '♖', 'B': '♗', 'N': '♘', 'P': '♙',
+  'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'
+};
+
+const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+// Chess State
+let currentFen = INITIAL_FEN;
+let moveHistory = []; // Array of { san, fen, from, to, epd }
+let currentPly = 0;
+let decompiledLines = [];
+let activeLineIndex = 0;
+let moveTreeRoot = null;
+let currentTreeNode = null;
+
+// Built-in Sample Scotch PGN from User
+const SAMPLE_SCOTCH_PGN = `[Event "white Repertoire"]
+[Site "chessbook.com"]
+[Date ""]
+[Round "N/A"]
+[White "N/A"]
+[Black "N/A"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. d4 exd4 (3... d6 4. dxe5 dxe5 5. Qxd8+ Nxd8 (5... Kxd8 6. Nc3 Bd7 7. Bc4) 6. Nxe5 Nf6 7. Nc3 Bb4 8. f3 O-O 9. Nd3 Bxc3+ 10. bxc3 b6 11. Nf4 Re8 12. a4 Ne6 13. Kf2 a5 14. g4) (3... Nf6 4. d5 Nd4 5. Nxe5 d6 6. Nc4 c5 7. c3 Nb5 8. a4 Nc7 9. Bd3 Be7 10. O-O) (3... f6 4. Bc4 exd4 5. O-O Bc5 6. c3 dxc3 7. Bxg8 Rxg8 8. Qd5) (3... d5 4. Nxe5 Nxe5 5. dxe5 d4 6. c3 Bc5 7. Bc4 Ne7 8. e6 Bxe6 9. Bxe6 fxe6 10. Qh5+ Kf8 11. Qxc5) (3... Bb4+ 4. c3 Ba5 5. a4 Nf6 6. b4 Bb6 7. a5) (3... Nxd4 4. Nxd4 exd4 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7+ Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4) 4. Nxd4 Nxd4 (4... Bc5 5. Nb3 Bb6 6. Qe2 d6 7. Nc3 Nf6 8. Be3 O-O 9. O-O-O Re8 10. f3 Be6 11. Kb1 Qe7 12. g4 Nd7 13. h4 Nde5 14. g5 Bc4 15. Qf2 Bxf1 16. Qxf1 Bxe3 17. Nd5 Qe6 18. Nxe3 a5 19. a3 b5 20. Nd5 a4 21. Nd2) (4... Nf6 5. Nc3 Bb4 (5... Nxd4 6. Qxd4 d6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) 6. Nxc6 bxc6 7. Bd3 d5 8. Bd2 O-O 9. O-O Bxc3 10. Bxc3 dxe4 11. Bxf6 Qxf6 12. Bxe4 Qxb2 13. Bxc6 Rb8 14. Rb1 Qxb1 15. Qxb1 Rxb1 16. Rxb1 Be6 17. Rb7 Rd8 18. Kf1 Bxa2 19. Rxa7 Bc4+ 20. Ke1 Rc8 21. Bd7 Rd8 22. Rxc7 Be6 23. Bxe6) 5. Qxd4 Nf6 (5... d6 6. Nc3 Nf6 7. Bf4 Be7 8. O-O-O O-O 9. f3 Be6 10. Kb1 c5 11. Qf2 (11. Qe3 a6 12. Bxd6 Bxd6 13. e5 Ne8 14. exd6 Qa5 15. a3 Rd8 16. Ne4) Qa5 12. Bxd6 Bxd6 13. Rxd6 b5 14. Qxc5 Rac8 15. Qxb5 Bxa2+ 16. Nxa2 Qe1+ 17. Nc1 Rb8 18. Qd3) (5... c5 6. Qe3 d6 7. Nc3 Nf6 8. Qg3 Be6 9. Bb5+ Bd7 10. Bxd7+ Qxd7 11. Bg5 Be7 12. O-O-O O-O-O 13. e5 Nh5 14. Qh4 Bxg5+ 15. Qxg5 g6 16. Rxd6 Qc7 17. Rhd1 Rxd6 18. exd6 Qd7 19. Qxc5+) 6. e5 Nh5 7. g4 *`;
+
+// Initialize UI on Load
+window.addEventListener('DOMContentLoaded', () => {
+  renderBoard();
+  loadSampleScotch();
+});
+
+// Basic Board Representation & FEN Parser
+function renderBoard(fen = INITIAL_FEN) {
+  const boardEl = document.getElementById('chessboard');
+  boardEl.innerHTML = '';
+  const rows = fen.split(' ')[0].split('/');
+
+  for (let r = 0; r < 8; r++) {
+    let fileIdx = 0;
+    for (let char of rows[r]) {
+      if (!isNaN(char)) {
+        for (let empty = 0; empty < parseInt(char); empty++) {
+          createSquare(boardEl, r, fileIdx, null);
+          fileIdx++;
+        }
+      } else {
+        createSquare(boardEl, r, fileIdx, char);
+        fileIdx++;
+      }
+    }
+  }
+}
+
+function createSquare(boardEl, row, col, pieceChar) {
+  const sq = document.createElement('div');
+  const isLight = (row + col) % 2 === 0;
+  sq.className = `square ${isLight ? 'light' : 'dark'}`;
+  sq.dataset.row = row;
+  sq.dataset.col = col;
+  const fileLetter = String.fromCharCode(97 + col);
+  const rankNumber = 8 - row;
+  sq.dataset.sq = `${fileLetter}${rankNumber}`;
+
+  // Notation labels on borders
+  if (col === 0) {
+    const rLabel = document.createElement('span');
+    rLabel.className = 'square-label label-rank';
+    rLabel.innerText = rankNumber;
+    sq.appendChild(rLabel);
+  }
+  if (row === 7) {
+    const fLabel = document.createElement('span');
+    fLabel.className = 'square-label label-file';
+    fLabel.innerText = fileLetter;
+    sq.appendChild(fLabel);
+  }
+
+  if (pieceChar) {
+    const p = document.createElement('span');
+    p.className = 'piece';
+    p.innerText = PIECES[pieceChar] || pieceChar;
+    sq.appendChild(p);
+  }
+
+  boardEl.appendChild(sq);
+}
+
+// ----------------------------------------------------
+// PGN TREE DECOMPILER & LINE EXTRACTOR
+// ----------------------------------------------------
+class TreeNode {
+  constructor(san = null, parent = null, ply = 0) {
+    this.san = san;
+    this.parent = parent;
+    this.children = [];
+    this.comment = "";
+    this.ply = ply;
+    this.fen = null;
+    this.epd = null;
+  }
+}
+
+function decompilePgn() {
+  const pgnText = document.getElementById('pgn-input').value.trim();
+  if (!pgnText) {
+    alert("Please enter or upload a PGN first.");
+    return;
+  }
+
+  // 1. Strip headers
+  let body = pgnText.replace(/\[.*?\]/g, '').trim();
+  body = body.replace(/(\*|1-0|0-1|1\/2-1\/2)\s*$/, '').trim();
+
+  // 2. Tokenize moves and parenthetical variations
+  const tokenPattern = /(\()|(\))|(\{.*?\})|(\$\d+)|([0-9]+\.+)|([a-zA-Z0-9+#=_-]+)/g;
+  let tokens = [];
+  let match;
+
+  while ((match = tokenPattern.exec(body)) !== null) {
+    if (match[1]) tokens.push({ type: 'open_paren' });
+    else if (match[2]) tokens.push({ type: 'close_paren' });
+    else if (match[3]) tokens.push({ type: 'comment', val: match[3] });
+    else if (match[4]) tokens.push({ type: 'nag', val: match[4] });
+    else if (match[5]) tokens.push({ type: 'move_num', val: match[5] });
+    else if (match[6]) tokens.push({ type: 'san', val: match[6] });
+  }
+
+  // 3. Build recursive Move Tree
+  const root = new TreeNode("START", null, 0);
+  root.fen = INITIAL_FEN;
+  let stack = [root];
+
+  for (let token of tokens) {
+    let curr = stack[stack.length - 1];
+    if (token.type === 'open_paren') {
+      stack.push(curr.parent ? curr.parent : root);
+    } else if (token.type === 'close_paren') {
+      if (stack.length > 1) stack.pop();
+    } else if (token.type === 'comment') {
+      if (curr) curr.comment = token.val.replace(/[{}]/g, '').trim();
+    } else if (token.type === 'san') {
+      let node = new TreeNode(token.val, curr, curr.ply + 1);
+      curr.children.push(node);
+      stack[stack.length - 1] = node;
+    }
+  }
+
+  moveTreeRoot = root;
+
+  // 4. Extract all terminal lines
+  decompiledLines = [];
+  function dfs(node, pathNodes) {
+    if (!node.children || node.children.length === 0) {
+      if (pathNodes.length > 0) {
+        decompiledLines.push(pathNodes);
+      }
+      return;
+    }
+    for (let child of node.children) {
+      dfs(child, [...pathNodes, child]);
+    }
+  }
+  dfs(root, []);
+
+  // Update UI
+  renderLinesList();
+  if (decompiledLines.length > 0) {
+    selectLine(0);
+  }
+}
+
+function renderLinesList() {
+  const container = document.getElementById('lines-list');
+  const countBadge = document.getElementById('line-count-badge');
+  const totalCount = document.getElementById('total-lines-count');
+
+  countBadge.innerText = `${decompiledLines.length} Lines Decompiled`;
+  totalCount.innerText = decompiledLines.length;
+  container.innerHTML = '';
+
+  decompiledLines.forEach((lineNodes, idx) => {
+    const card = document.createElement('div');
+    card.className = `line-card ${idx === activeLineIndex ? 'active' : ''}`;
+    card.onclick = () => selectLine(idx);
+
+    // Format moves
+    const moveStrings = formatLineMoves(lineNodes);
+    
+    // Identify opening naming heuristic from moves
+    let name = `Variation ${idx + 1}`;
+    if (moveStrings.includes('Bc5')) name = `Scotch: Classical (4...Bc5)`;
+    else if (moveStrings.includes('Bb4')) name = `Scotch: Mieses / Bb4+`;
+    else if (moveStrings.includes('Nxd4 5. Qxd4')) name = `Scotch: 4...Nxd4 5. Qxd4`;
+    else if (moveStrings.includes('3... d6')) name = `Scotch: 3...d6 Sideline`;
+    else if (moveStrings.includes('3... Nf6')) name = `Scotch: 3...Nf6 Counter`;
+    else if (moveStrings.includes('3... f6')) name = `Scotch: 3...f6`;
+    else if (moveStrings.includes('3... d5')) name = `Scotch: 3...d5 Gambit`;
+
+    card.innerHTML = `
+      <div class="line-header">
+        <span class="line-title">${name}</span>
+        <span>${lineNodes.length} plies</span>
+      </div>
+      <div class="line-moves">${moveStrings}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function formatLineMoves(nodes) {
+  let res = [];
+  nodes.forEach((node, idx) => {
+    const ply = idx + 1;
+    const moveNum = Math.ceil(ply / 2);
+    if (ply % 2 === 1) {
+      res.push(`${moveNum}. ${node.san}`);
+    } else {
+      res.push(node.san);
+    }
+  });
+  return res.join(' ');
+}
+
+// ----------------------------------------------------
+// LINE PLAYTHROUGH & BRANCH EXPLORATION
+// ----------------------------------------------------
+function selectLine(index) {
+  activeLineIndex = index;
+  const cards = document.querySelectorAll('.line-card');
+  cards.forEach((c, i) => c.classList.toggle('active', i === index));
+
+  const activeNodes = decompiledLines[index] || [];
+  buildHistoryFromNodes(activeNodes);
+  goToStart();
+}
+
+function buildHistoryFromNodes(nodes) {
+  moveHistory = [{ san: 'START', node: moveTreeRoot }];
+  for (let n of nodes) {
+    moveHistory.push({ san: n.san, node: n });
+  }
+}
+
+function updateBoardToPly(ply) {
+  currentPly = ply;
+  const curr = moveHistory[ply];
+  currentTreeNode = curr ? curr.node : moveTreeRoot;
+
+  // Approximate mini-move simulator to update FEN
+  currentFen = simulateFen(moveHistory.slice(1, ply + 1).map(m => m.san));
+  renderBoard(currentFen);
+
+  document.getElementById('fen-display').innerText = currentFen;
+  document.getElementById('move-indicator').innerText = ply === 0 ? "Starting Position" : `Move ${Math.ceil(ply/2)}${ply%2===0?'...':'.'} ${curr.san}`;
+  document.getElementById('turn-badge').innerText = (ply % 2 === 0) ? "White to move" : "Black to move";
+  document.getElementById('turn-badge').style.color = (ply % 2 === 0) ? "#58a6ff" : "#d29922";
+
+  renderNotationHistory();
+  renderCandidateBranches();
+}
+
+function renderNotationHistory() {
+  const container = document.getElementById('notation-history');
+  container.innerHTML = '';
+
+  for (let i = 1; i < moveHistory.length; i++) {
+    const ply = i;
+    const moveNum = Math.ceil(ply / 2);
+    if (ply % 2 === 1) {
+      const numSpan = document.createElement('span');
+      numSpan.style.color = '#8b949e';
+      numSpan.innerText = ` ${moveNum}. `;
+      container.appendChild(numSpan);
+    }
+
+    const moveSpan = document.createElement('span');
+    moveSpan.className = `notation-move ${i === currentPly ? 'active' : ''}`;
+    moveSpan.innerText = moveHistory[i].san;
+    moveSpan.onclick = () => updateBoardToPly(i);
+    container.appendChild(moveSpan);
+  }
+}
+
+function renderCandidateBranches() {
+  const container = document.getElementById('candidate-branches');
+  const countEl = document.getElementById('candidate-count');
+  container.innerHTML = '';
+
+  if (!currentTreeNode || !currentTreeNode.children || currentTreeNode.children.length === 0) {
+    countEl.innerText = '0';
+    container.innerHTML = '<div style="color:var(--text-muted); font-size:0.8rem;">Terminal line reached (no further prepared responses).</div>';
+    return;
+  }
+
+  const children = currentTreeNode.children;
+  countEl.innerText = children.length;
+
+  children.forEach((child) => {
+    const btn = document.createElement('div');
+    btn.className = 'candidate-btn';
+    
+    // Count remaining sublines below this candidate
+    let sublineCount = 0;
+    function countLeaves(n) {
+      if (!n.children || n.children.length === 0) { sublineCount++; return; }
+      for (let c of n.children) countLeaves(c);
+    }
+    countLeaves(child);
+
+    btn.onclick = () => {
+      // Branch into this child
+      branchIntoMove(child);
+    };
+
+    btn.innerHTML = `
+      <div>
+        <div class="candidate-move">${child.san}</div>
+        <div style="font-size:0.75rem; color:#8b949e;">Next response: ${child.children.length > 0 ? child.children[0].san : 'End of Line'}</div>
+      </div>
+      <div class="candidate-meta">
+        <div style="color:var(--accent); font-weight:600;">${sublineCount} ${sublineCount===1?'Line':'Lines'}</div>
+        <div style="font-size:0.7rem;">Click to explore &rarr;</div>
+      </div>
+    `;
+    container.appendChild(btn);
+  });
+}
+
+function branchIntoMove(targetChildNode) {
+  // Find which decompiled line contains this node sequence
+  const currentPath = moveHistory.slice(1, currentPly + 1).map(m => m.node);
+  const targetPath = [...currentPath, targetChildNode];
+
+  const matchingLineIdx = decompiledLines.findIndex(line => {
+    if (line.length < targetPath.length) return false;
+    for (let i = 0; i < targetPath.length; i++) {
+      if (line[i] !== targetPath[i]) return false;
+    }
+    return true;
+  });
+
+  if (matchingLineIdx !== -1) {
+    activeLineIndex = matchingLineIdx;
+    renderLinesList();
+    buildHistoryFromNodes(decompiledLines[matchingLineIdx]);
+    updateBoardToPly(currentPly + 1);
+  }
+}
+
+// ----------------------------------------------------
+// NAVIGATION CONTROLS
+// ----------------------------------------------------
+function stepMove(delta) {
+  const newPly = currentPly + delta;
+  if (newPly >= 0 && newPly < moveHistory.length) {
+    updateBoardToPly(newPly);
+  }
+}
+function goToStart() { updateBoardToPly(0); }
+function goToEnd() { updateBoardToPly(moveHistory.length - 1); }
+
+// Simple Chess Simulation for Accurate FEN display
+function simulateFen(sans) {
+  // Standard starting matrix
+  let b = [
+    ['r','n','b','q','k','b','n','r'],
+    ['p','p','p','p','p','p','p','p'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['.','.','.','.','.','.','.','.'],
+    ['P','P','P','P','P','P','P','P'],
+    ['R','N','B','Q','K','B','N','R']
+  ];
+
+  // Helper move mapper for standard opening moves
+  for (let i = 0; i < sans.length; i++) {
+    const san = sans[i];
+    const isWhite = i % 2 === 0;
+
+    if (san === 'e4') { b[6][4] = '.'; b[4][4] = 'P'; }
+    else if (san === 'e5') { b[1][4] = '.'; b[3][4] = 'p'; }
+    else if (san === 'Nf3') { b[7][6] = '.'; b[5][5] = 'N'; }
+    else if (san === 'Nc6') { b[0][1] = '.'; b[2][2] = 'n'; }
+    else if (san === 'd4') { b[6][3] = '.'; b[4][3] = 'P'; }
+    else if (san === 'exd4') { b[3][4] = '.'; b[4][3] = 'p'; }
+    else if (san === 'Nxd4') { b[5][5] = '.'; b[4][3] = 'N'; }
+    else if (san === 'Bc5') { b[0][5] = '.'; b[3][2] = 'b'; }
+    else if (san === 'Nf6') { b[0][6] = '.'; b[2][5] = 'n'; }
+    else if (san === 'd6') { b[1][3] = '.'; b[2][3] = 'p'; }
+    else if (san === 'Qxd4') { b[7][3] = '.'; b[4][3] = 'Q'; }
+    else if (san === 'c5') { b[1][2] = '.'; b[3][2] = 'p'; }
+    else if (san === 'Qe3') { b[4][3] = '.'; b[5][4] = 'Q'; }
+    else if (san === 'Nb3') { b[4][3] = '.'; b[5][1] = 'N'; }
+    else if (san === 'Bb6') { b[3][2] = '.'; b[2][1] = 'b'; }
+    else if (san === 'O-O' && isWhite) { b[7][4]='.'; b[7][6]='K'; b[7][7]='.'; b[7][5]='R'; }
+    else if (san === 'O-O' && !isWhite) { b[0][4]='.'; b[0][6]='k'; b[0][7]='.'; b[0][5]='r'; }
+    else if (san === 'O-O-O' && isWhite) { b[7][4]='.'; b[7][2]='K'; b[7][0]='.'; b[7][3]='R'; }
+    else if (san === 'O-O-O' && !isWhite) { b[0][4]='.'; b[0][2]='k'; b[0][0]='.'; b[0][3]='r'; }
+  }
+
+  // Convert matrix back to FEN
+  let fenRows = [];
+  for (let r = 0; r < 8; r++) {
+    let empty = 0;
+    let rowStr = '';
+    for (let c = 0; c < 8; c++) {
+      if (b[r][c] === '.') {
+        empty++;
+      } else {
+        if (empty > 0) { rowStr += empty; empty = 0; }
+        rowStr += b[r][c];
+      }
+    }
+    if (empty > 0) rowStr += empty;
+    fenRows.push(rowStr);
+  }
+
+  const turn = sans.length % 2 === 0 ? 'w' : 'b';
+  return `${fenRows.join('/')} ${turn} KQkq - 0 ${Math.floor(sans.length / 2) + 1}`;
+}
+
+// ----------------------------------------------------
+// EXPORT & FILE UTILITIES
+// ----------------------------------------------------
+function loadSampleScotch() {
+  document.getElementById('pgn-input').value = SAMPLE_SCOTCH_PGN;
+  decompilePgn();
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    document.getElementById('pgn-input').value = event.target.result;
+    decompilePgn();
+  };
+  reader.readAsText(file);
+}
+
+function exportCurrentLine() {
+  if (decompiledLines.length === 0) return;
+  const lineNodes = decompiledLines[activeLineIndex];
+  const movesStr = formatLineMoves(lineNodes);
+  const pgnExport = `[Event "Decompiled Repertoire Line ${activeLineIndex + 1}"]\n[Site "RepertoireBuilder"]\n[Result "*"]\n\n${movesStr} *`;
+  
+  const blob = new Blob([pgnExport], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `repertoire_line_${activeLineIndex + 1}.pgn`;
+  a.click();
+}
+</script>
+
+</body>
+</html>
