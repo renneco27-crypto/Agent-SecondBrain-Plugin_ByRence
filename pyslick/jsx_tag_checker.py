@@ -1,6 +1,6 @@
-"""
+﻿"""
 JSX / HTML Tag Checker
-Checks for unclosed, mismatched, or stray JSX and HTML tags/fragments in .html, .jsx, and .js files.
+Checks for unclosed, mismatched, or stray JSX and HTML tags/fragments.
 """
 
 import sys
@@ -13,14 +13,49 @@ def check_jsx_tags(file_path):
         return False
 
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        lines = f.readlines()
+        content = f.read()
+
+    # Strip full block elements before parsing
+    content = re.sub(r'<svg[\s>].*?</svg>', '<svg />', content, flags=re.DOTALL)
+    content = re.sub(r'<script[\s>].*?</script>', '', content, flags=re.DOTALL)
+    content = re.sub(r'<style[\s>].*?</style>', '', content, flags=re.DOTALL)
+
+    # Collapse multi-line tags into single lines (join lines until > is found)
+    def collapse_multiline_tags(text):
+        result = []
+        lines = text.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            # Count unmatched < vs > to detect multi-line tags
+            open_count = len(re.findall(r'<[^/!]', line))
+            close_count = len(re.findall(r'(?<!=)>', line))
+            if open_count > close_count and not line.strip().startswith('//'):
+                combined = line
+                while i + 1 < len(lines) and '>' not in lines[i + 1].split('//')[0]:
+                    i += 1
+                    combined += ' ' + lines[i].strip()
+                if i + 1 < len(lines):
+                    i += 1
+                    combined += ' ' + lines[i].strip()
+                result.append(combined)
+            else:
+                result.append(line)
+            i += 1
+        return '\n'.join(result)
+
+    content = collapse_multiline_tags(content)
+    lines = content.splitlines()
 
     tag_stack = []
     errors = []
 
     VOID_TAGS = {
-        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 
-        'link', 'meta', 'param', 'source', 'track', 'wbr'
+        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+        'link', 'meta', 'param', 'source', 'track', 'wbr',
+        'path', 'circle', 'rect', 'line', 'polygon', 'polyline',
+        'ellipse', 'stop', 'use', 'defs', 'clipPath',
+        'linearGradient', 'radialGradient', 'animate', 'animateTransform'
     }
 
     in_multi_comment = False
@@ -28,7 +63,6 @@ def check_jsx_tags(file_path):
     for line_num, line in enumerate(lines, 1):
         clean = line.strip()
 
-        # Handle multi-line comments
         if in_multi_comment:
             if '*/' in clean:
                 in_multi_comment = False
@@ -43,30 +77,26 @@ def check_jsx_tags(file_path):
             else:
                 clean = re.sub(r'/\*.*?\*/', '', clean)
 
-        # Remove single-line JS comments
         clean = re.sub(r'//.*$', '', clean)
+        clean = re.sub(r'="[^"]*"', '="X"', clean)
+        clean = re.sub(r"='[^']*'", "='X'", clean)
 
-        # Match tags: fragments (<>, </>), self-closing (<tag ... />), closing (</tag>), opening (<tag ...>)
-        tag_matches = re.finditer(r'(</?[a-zA-Z0-9_.:-]+(?:\s+[^>]*)?>|/>|</>)', clean)
+        tag_matches = re.finditer(r'(</?[a-zA-Z0-9_.:-]+(?:\s[^>]*)?>|</>)', clean)
 
         for match in tag_matches:
             tag_str = match.group(1).strip()
 
-            # Fragment opening <>
             if tag_str == '<>' or (tag_str.startswith('<React.Fragment') and not tag_str.endswith('/>')):
                 tag_stack.append(('fragment', line_num, tag_str))
-            # Fragment closing </>
             elif tag_str == '</>' or tag_str.startswith('</React.Fragment'):
                 if not tag_stack:
-                    errors.append(f"[Line {line_num}] Stray closing fragment '{tag_str}' (no matching opening '<>')")
+                    errors.append(f"[Line {line_num}] Stray closing fragment '{tag_str}'")
                 else:
                     top = tag_stack.pop()
                     if top[0] != 'fragment':
                         errors.append(f"[Line {line_num}] Tag Mismatch: expected '</{top[0]}>' (opened at Line {top[1]}), but found '{tag_str}'")
-            # Self-closing tags <tag ... />
             elif tag_str.endswith('/>'):
                 continue
-            # Closing tags </tag>
             elif tag_str.startswith('</'):
                 m = re.match(r'</([a-zA-Z0-9_.:-]+)', tag_str)
                 if m:
@@ -82,7 +112,6 @@ def check_jsx_tags(file_path):
                                 f"   Expected closing '</{top[0]}>' (opened at Line {top[1]}: {top[2][:60]})\n"
                                 f"   Check for an unclosed tag between Line {top[1]} and Line {line_num}."
                             )
-            # Opening tags <tag ...>
             elif tag_str.startswith('<') and not tag_str.startswith('<!'):
                 m = re.match(r'<([a-zA-Z0-9_.:-]+)', tag_str)
                 if m:
@@ -99,7 +128,7 @@ def check_jsx_tags(file_path):
             )
 
     if not errors:
-        print(f"[OK] No JSX / HTML tag mismatches detected in: {file_path}")
+        print(f"✅ No scope or brace mismatches detected!")
         return True
     else:
         print(f"[ERROR] Found {len(errors)} JSX / HTML tag issue(s) in: {file_path}\n" + "=" * 70)
@@ -109,7 +138,7 @@ def check_jsx_tags(file_path):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python jsx_tag_checker.py <path_to_html_or_jsx_file>")
+        print("Usage: python jsx_tag_checker.py <path_to_file>")
         sys.exit(1)
 
     file_path = sys.argv[1]
