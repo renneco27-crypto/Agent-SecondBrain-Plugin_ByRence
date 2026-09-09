@@ -75,7 +75,7 @@ echo Setup Complete!
 echo ========================================
 echo.
 echo Quick Test:
-call pyslick.bat --help
+python pyslick.py --help
 echo.
 echo Next Steps:
 echo 1. Run: pyslick.bat --help

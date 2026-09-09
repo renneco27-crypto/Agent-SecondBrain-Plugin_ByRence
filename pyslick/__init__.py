@@ -23,9 +23,6 @@ PYSLICK_DIR = os.path.dirname(os.path.abspath(__file__))
 # Add to path for imports
 sys.path.insert(0, PYSLICK_DIR)
 
-# Since we're now in the main directory, we need to adjust for the fact that the modules are in the same directory
-# For now, we'll use the current directory for imports
-
 # Dynamic imports to avoid blocking at startup
 def import_find_nearest_nodes():
     from find_nearest_nodes import main as find_nearest_nodes_main
