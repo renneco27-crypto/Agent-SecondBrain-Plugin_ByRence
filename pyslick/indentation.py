@@ -62,16 +62,16 @@ def analyze_indentation_scopes(file_path):
                     })
                 elif char == '}':
                     if not stack:
-                        errors.append(f"❌ [Line {line_num}, Col {i+1}] Stray closing '}}' found (no matching '{{').")
+                        errors.append(f"[Line {line_num}, Col {i+1}] Stray closing '}}' found (no matching '{{').")
                     else:
                         opened = stack.pop()
                         is_leading_brace = (i == indent)
                         if is_leading_brace and indent != opened['indent']:
                             errors.append(
-                                f"🚨 [Line {line_num}] SCOPE DRIFT / INDENTATION MISMATCH:\n"
+                                f"[Line {line_num}] SCOPE DRIFT / INDENTATION MISMATCH:\n"
                                 f"   Closing '}}' (indent {indent}) closed '{{' from Line {opened['line']} (indent {opened['indent']}).\n"
                                 f"   Opened Block: \"{opened['snippet']}...\"\n"
-                                f"   👉 Check for a missing or extra '}}' between Line {opened['line']} and Line {line_num}.\n"
+                                f"   Check for a missing or extra '}}' between Line {opened['line']} and Line {line_num}.\n"
                             )
 
             i += 1
@@ -79,7 +79,7 @@ def analyze_indentation_scopes(file_path):
     if stack:
         for opened in stack:
             errors.append(
-                f"❌ [Line {opened['line']}] Unclosed '{{' (indent {opened['indent']}).\n"
+                f"[Line {opened['line']}] Unclosed '{{' (indent {opened['indent']}).\n"
                 f"   Opened Block: \"{opened['snippet']}...\""
             )
 
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     results = analyze_indentation_scopes(target_file)
 
     if not results:
-        print("✅ No scope or brace mismatches detected!")
+        print("OK: No scope or brace mismatches detected!")
     else:
         for err in results:
             print(err)

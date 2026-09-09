@@ -66,7 +66,7 @@ def main(root_dir: str):
             for line_no, msg in problems:
                 print(f"  Line {line_no}: {msg}")
     if total == 0:
-        print("No stray symbols detected.")
+        print("OK: No stray symbols detected.")
     else:
         print(f"\nTotal problems found: {total}")
 

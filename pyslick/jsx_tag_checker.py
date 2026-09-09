@@ -1,9 +1,4 @@
-﻿"""
-JSX / HTML Tag Checker
-Checks for unclosed, mismatched, or stray JSX and HTML tags/fragments.
-"""
-
-import sys
+﻿import sys
 import os
 import re
 
@@ -20,14 +15,13 @@ def check_jsx_tags(file_path):
     content = re.sub(r'<script[\s>].*?</script>', '', content, flags=re.DOTALL)
     content = re.sub(r'<style[\s>].*?</style>', '', content, flags=re.DOTALL)
 
-    # Collapse multi-line tags into single lines (join lines until > is found)
+    # Collapse multi-line tags into single lines
     def collapse_multiline_tags(text):
         result = []
         lines = text.split('\n')
         i = 0
         while i < len(lines):
             line = lines[i]
-            # Count unmatched < vs > to detect multi-line tags
             open_count = len(re.findall(r'<[^/!]', line))
             close_count = len(re.findall(r'(?<!=)>', line))
             if open_count > close_count and not line.strip().startswith('//'):
@@ -56,6 +50,12 @@ def check_jsx_tags(file_path):
         'path', 'circle', 'rect', 'line', 'polygon', 'polyline',
         'ellipse', 'stop', 'use', 'defs', 'clipPath',
         'linearGradient', 'radialGradient', 'animate', 'animateTransform'
+    }
+
+    # Common TypeScript generic primitive types and type parameter patterns to ignore
+    TS_GENERIC_TYPES = {
+        'string', 'number', 'boolean', 'any', 'unknown', 'never', 'void',
+        'object', 'symbol', 'bigint', 'undefined', 'null', 't', 'k', 'v', 'u', 'r'
     }
 
     in_multi_comment = False
@@ -101,6 +101,8 @@ def check_jsx_tags(file_path):
                 m = re.match(r'</([a-zA-Z0-9_.:-]+)', tag_str)
                 if m:
                     tag_name = m.group(1)
+                    if tag_name.lower() in TS_GENERIC_TYPES:
+                        continue
                     if not tag_stack:
                         errors.append(f"[Line {line_num}] Stray closing tag '</{tag_name}>' (no matching opening tag)")
                     else:
@@ -108,15 +110,15 @@ def check_jsx_tags(file_path):
                         if top[0] != tag_name:
                             errors.append(
                                 f"[Line {line_num}] Tag Mismatch:\n"
-                                f"   Found closing '</{tag_name}>'\n"
-                                f"   Expected closing '</{top[0]}>' (opened at Line {top[1]}: {top[2][:60]})\n"
-                                f"   Check for an unclosed tag between Line {top[1]} and Line {line_num}."
+                                f"    Found closing '</{tag_name}>'\n"
+                                f"    Expected closing '</{top[0]}>' (opened at Line {top[1]}: {top[2][:60]})\n"
+                                f"    Check for an unclosed tag between Line {top[1]} and Line {line_num}."
                             )
             elif tag_str.startswith('<') and not tag_str.startswith('<!'):
                 m = re.match(r'<([a-zA-Z0-9_.:-]+)', tag_str)
                 if m:
                     tag_name = m.group(1)
-                    if tag_name.lower() in VOID_TAGS:
+                    if tag_name.lower() in VOID_TAGS or tag_name.lower() in TS_GENERIC_TYPES:
                         continue
                     tag_stack.append((tag_name, line_num, tag_str))
 
@@ -124,11 +126,11 @@ def check_jsx_tags(file_path):
         for tag in tag_stack:
             errors.append(
                 f"[Line {tag[1]}] Unclosed tag '<{tag[0]}>':\n"
-                f"   Snippet: \"{tag[2][:80]}\""
+                f"    Snippet: \"{tag[2][:80]}\""
             )
 
     if not errors:
-        print(f"✅ No scope or brace mismatches detected!")
+        print(f"OK: No JSX/HTML tag issues detected!")
         return True
     else:
         print(f"[ERROR] Found {len(errors)} JSX / HTML tag issue(s) in: {file_path}\n" + "=" * 70)

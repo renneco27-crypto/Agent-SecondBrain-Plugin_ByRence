@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-graphify.py - Standalone Knowledge Graph Pipeline
+graphify_runner.py / graphify.py - Standalone Knowledge Graph Pipeline
 Automated pipeline that converts any folder of code and docs into a queryable knowledge graph.
-
-Usage:
-  python graphify.py                   # Run full pipeline on current directory
-  python graphify.py <path>            # Run on specific path
-  python graphify.py <path> --directed # Directed graph (preserves edge direction)
-  python graphify.py <path> --obsidian # Generate Obsidian vault
-  python graphify.py <path> --no-viz   # Skip HTML visualization
 """
 
 import sys
 import os
+
+# Prevent self-import collision when script is named graphify.py
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir in sys.path:
+    sys.path.remove(current_dir)
+
 import json
 import time
 import argparse
@@ -122,7 +121,8 @@ def run_graphify(
     labels = {}
     for cid, nodes in communities.items():
         sample_names = [n.split('/')[-1].split('.')[0] for n in nodes[:5]]
-        labels[cid] = f"Cluster {cid} ({', '.join(sample_names[:2])})" if sample_names else f"Cluster {cid}"
+        clean = [c for c in sample_names if c]
+        labels[cid] = f"Cluster {cid} ({', '.join(clean[:2])})" if clean else f"Cluster {cid}"
 
     questions = suggest_questions(G, communities, labels)
 

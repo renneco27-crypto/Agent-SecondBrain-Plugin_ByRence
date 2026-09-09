@@ -1,23 +1,4 @@
-# pySlick Diagnostics Toolkit
+patchit.py is an interactive, line-aware patch tool. It gives us six modes to modify your extension code without overwriting whole files or making manual edit errors:-l (List): Print file with line numbers.-f (Find \& Replace): Match exact or fuzzy code blocks (ignoring whitespace differences) and swap them.-d (Diff): Apply .patch or .diff files using difflib/whatthepatch.-r (Range): Delete specific line ranges (start to end).-i (Insert): Insert new code right after line $N$.default (Paste): Interactively replace the full file content with automatic safety backups (.bak\_TIMESTAMP).How We Can Use patchit.py for Your Claude ExtensionTo update claudeContent.js using patchit.py -f (Find \& Replace):1. Run patchit.py in Find \& Replace ModePowerShellpython "C:\\Users\\corte\\Documents\\do not delete second brain\\pyslick\\patchit.py" claudeContent.js -f
 
-Tools for catching missing brackets, mismatched JSX tags, scope drifts, and Babel/React syntax errors.
+2\. Paste the OLD Block to TargetWhen prompted for the OLD block, paste the old Gemini functions and finish with END:
 
-## Tools Included
-
-### 1. `indentation.py`
-Analyzes scope indentation and brace (`{` / `}`) nesting balance in source files.
-```bash
-python indentation.py <path_to_file>
-```
-
-### 2. `jsx_tag_checker.py`
-Scans HTML and JSX files for mismatched closing tags (`<div>...</span>`), unclosed containers, missing closing tags, and unclosed React fragments (`<>...</>`).
-```bash
-python jsx_tag_checker.py <path_to_html_or_jsx_file>
-```
-
-### 3. `babel_syntax_validator.js`
-Uses `@babel/standalone` to parse and validate inline `<script type="text/babel">` blocks inside HTML pages or standalone JSX/JS files. Pinpoints the exact line, column, and code context for syntax errors like `Unexpected token }`.
-```bash
-node babel_syntax_validator.js <path_to_file>
-```
