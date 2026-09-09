@@ -1,0 +1,82 @@
+# PySlick - Super Python Program for Code Analysis and Editing
+
+PySlick is a unified CLI tool that consolidates multiple code analysis and editing utilities into a single interface with automatic git checkpointing.
+
+## Installation
+
+### Option 1: Install from GitHub (Recommended)
+```bash
+pip install git+https://github.com/renneco27-crypto/Agent-SecondBrain-Plugin_ByRence.git#subdirectory=pyslick_package
+```
+
+### Option 2: Install from local
+```bash
+cd pyslick_package
+pip install -e .
+```
+
+### Option 3: Use setup.bat (Windows)
+```bash
+cd pyslick
+setup.bat
+```
+
+## Features
+
+- **Code Analysis**: Find stray symbols, check indentation, validate JSX tags
+- **Natural Language Queries**: Query Python files by description
+- **Git Integration**: Automatic checkpointing before operations
+- **Safe Rollback**: Easy rollback to previous states
+- **Multiple Tools**: 8+ tools in one unified interface
+
+## Usage
+
+```bash
+pyslick --help                    # Show all commands
+pyslick checkpoint                # Create git checkpoint
+pyslick rollback                  # Rollback to last checkpoint
+pyslick status                    # Show git status
+pyslick find-stray-symbols .      # Scan for JSX stray symbols
+pyslick indentation myfile.py     # Check indentation
+pyslick jsx-check myfile.tsx      # Check JSX tags
+pyslick patchit myfile.py -l      # Edit files with diff
+```
+
+## Git Operations
+
+PySlick automatically creates git checkpoints before most operations:
+
+- `pyslick checkpoint` - Manual checkpoint creation
+- `pyslick stash` - Stash current changes
+- `pyslick rollback` - Rollback to last checkpoint
+- `pyslick status` - Show git status
+- `pyslick log` - Show recent commits
+
+## Available Commands
+
+### Code Analysis
+- `find-nearest-nodes <query>` - Fuzzy/semantic search
+- `find-stray-symbols <path>` - Scan for JSX stray symbols
+- `gemini-query <file> <question>` - Query Python files
+- `graphify-query <file> <question>` - Query with connected code
+- `graphify-sitter <query>` - Tree-sitter parser
+- `indentation <file>` - Indentation analysis
+- `jsx-check <file>` - JSX tag checking
+- `patchit <file> [options]` - File editor with diff
+
+### Git Operations
+- `checkpoint` - Create git checkpoint
+- `stash` - Stash changes
+- `rollback` - Rollback to checkpoint
+- `status` - Git status
+- `log` - Recent commits
+
+## Requirements
+
+- Python 3.8+
+- Git (for checkpointing features)
+- Dependencies: rapidfuzz, sentence-transformers, tree-sitter, tree-sitter-typescript, whatthepatch
+
+## License
+
+MIT License
