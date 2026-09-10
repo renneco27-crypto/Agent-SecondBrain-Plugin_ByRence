@@ -87,7 +87,7 @@ if not exist "%RECON_PY%" (
 
 :: ── 4. Install package ────────────────────────────────────────────────────────
 echo [4/5] Installing pyslick_package ...
-"%PY%" -m pip install -e "%~dp0" --quiet
+"%PY%" -m pip install -e "%~dp0." --quiet
 echo [OK] Package installed.
 
 :: ── 5. Add root to User PATH ──────────────────────────────────────────────────

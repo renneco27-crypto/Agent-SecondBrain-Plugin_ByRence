@@ -10,6 +10,7 @@ pyslick/graphify_sitter.py
 pyslick/indentation.py
 pyslick/jsx_tag_checker.py
 pyslick/patchit.py
+pyslick/recon.py
 pyslick.egg-info/PKG-INFO
 pyslick.egg-info/SOURCES.txt
 pyslick.egg-info/dependency_links.txt
