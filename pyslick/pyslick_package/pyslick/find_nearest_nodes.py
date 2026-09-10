@@ -1,11 +1,11 @@
-import json
+﻿import json
 import os
 import sys
 from rapidfuzz import process
 from rapidfuzz.fuzz import WRatio
-from sentence_transformers import SentenceTransformer, util
 
 GRAPH_PATH = os.path.join("graphify-out", "graph.json")
+SKILL_PATH = os.path.join("graphify", "skill.md")
 TOP_K = 5
 
 
@@ -31,8 +31,37 @@ def load_graph_nodes():
     return nodes
 
 
-def fuzzy_match(query, nodes, top_k=TOP_K):
-    """Fast lexical string matching — handles typos and partial words."""
+def load_graphify_vocab(skill_path=SKILL_PATH):
+    """Loads graphify skill/query reference instructions for lightweight vocab expansion."""
+    if not os.path.exists(skill_path):
+        return {}
+    vocab_map = {}
+    try:
+        with open(skill_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith(("-", "*")):
+                    parts = line.strip(" -*").split(":")
+                    if len(parts) > 1:
+                        key = parts[0].strip().lower()
+                        synonyms = [s.strip().lower() for s in parts[1].split(",")]
+                        vocab_map[key] = synonyms
+    except Exception:
+        pass
+    return vocab_map
+
+
+def expand_query_with_vocab(query, vocab_map):
+    """Expands query terms using loaded Graphify skill references without external ML models."""
+    query_lower = query.lower()
+    expanded_terms = [query]
+    for key, synonyms in vocab_map.items():
+        if key in query_lower or any(syn in query_lower for syn in synonyms):
+            expanded_terms.extend(synonyms)
+    return " ".join(set(expanded_terms))
+
+
+def find_closest_graph_nodes(query, nodes, top_k=TOP_K):
+    """Pure string similarity graph matching using rapidfuzz WRatio against AST node labels."""
     labels = [n["label"] for n in nodes]
     results = process.extract(
         query,
@@ -41,9 +70,9 @@ def fuzzy_match(query, nodes, top_k=TOP_K):
         limit=top_k,
     )
 
-    print("\n--- Fuzzy (Lexical) Matches ---")
+    print("\n--- Closest Graph Node Matches (Fuzzy Vocab) ---")
     if not results:
-        print("  No matches found.")
+        print("  No matching graph nodes found.")
         return
 
     for match, score, index in results:
@@ -51,39 +80,25 @@ def fuzzy_match(query, nodes, top_k=TOP_K):
         print(f"  [{score:5.1f}%]  {node['label']}  ({node['type']})  ->  {node['id']}")
 
 
-def semantic_match(query, nodes, model, node_embeddings, top_k=TOP_K):
-    """Embedding-based semantic search using a pre-loaded model and cached embeddings."""
-    labels = [n["label"] for n in nodes]
-
-    query_embedding = model.encode(query, convert_to_tensor=True)
-    cosine_scores = util.cos_sim(query_embedding, node_embeddings)[0]
-    top_results = cosine_scores.topk(k=min(top_k, len(nodes)))
-
-    print("\n--- Semantic (AI Concept) Matches ---")
-    for score, idx in zip(top_results.values, top_results.indices):
-        node = nodes[idx.item()]
-        print(f"  [{score.item():.4f}]  {node['label']}  ({node['type']})  ->  {node['id']}")
-
-
 def main():
     nodes = load_graph_nodes()
     if not nodes:
         sys.exit(1)
 
-    print(f"\nLoaded {len(nodes)} nodes from {GRAPH_PATH}")
+    graph_vocab = load_graphify_vocab()
+    print(f"Loaded {len(nodes)} graph nodes from {GRAPH_PATH}")
 
-    # Load model and pre-compute embeddings once before the search loop
-    print("Loading embedding model (all-MiniLM-L6-v2) — runs locally on CPU...")
-    model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-
-    labels = [n["label"] for n in nodes]
-    print("Computing node embeddings...")
-    node_embeddings = model.encode(labels, convert_to_tensor=True)
-    print("Ready. Type a query to search, or 'q' to quit.\n")
+    if len(sys.argv) > 1:
+        query = " ".join(sys.argv[1:]).strip()
+        search_query = expand_query_with_vocab(query, graph_vocab)
+        if search_query != query:
+            print(f"  [Graphify Vocab Expanded]: {search_query}")
+        find_closest_graph_nodes(search_query, nodes)
+        return
 
     while True:
         try:
-            query = input("Search query: ").strip()
+            query = input("\nSearch query: ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting.")
             break
@@ -93,9 +108,10 @@ def main():
         if not query:
             continue
 
-        fuzzy_match(query, nodes)
-        semantic_match(query, nodes, model, node_embeddings)
-        print()
+        search_query = expand_query_with_vocab(query, graph_vocab)
+        if search_query != query:
+            print(f"  [Graphify Vocab Expanded]: {search_query}")
+        find_closest_graph_nodes(search_query, nodes)
 
 
 if __name__ == "__main__":
