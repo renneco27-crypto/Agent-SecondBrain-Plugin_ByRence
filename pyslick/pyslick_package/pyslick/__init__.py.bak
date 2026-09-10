@@ -59,10 +59,6 @@ def import_patchit():
     from patchit import main as patchit_main
     return patchit_main
 
-def import_recon():
-    from recon import main as recon_main
-    return recon_main
-
 # Git operations
 def git_checkpoint():
     """Create a git checkpoint before operations"""
@@ -356,13 +352,6 @@ def main():
             except Exception as e:
                 print(f"Error: {e}")
                 sys.exit(1)
-        elif command == "recon":
-            try:
-                recon_main = import_recon()
-                sys.argv = ["recon"] + args
-                recon_main()
-            except Exception as e:
-                print(f"Error: {e}"); sys.exit(1)
         elif command == "patchit":
             try:
                 patchit_main = import_patchit()
