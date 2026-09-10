@@ -1,0 +1,32 @@
+Optimal Recon-to-Patch Hierarchy
+Phase 1 — Orient (What project is this?)
+pyslick log                          # see recent commits, find if spacing was fixed before
+pyslick status                       # confirm clean working directory
+
+The log would have immediately shown a prior spacing fix commit — we'd have the filename from history without any searching.
+
+Phase 2 — Locate (Find the file)
+pyslick find-nearest-nodes "flashcard spacing padding"
+
+This was the right call — it returned FlashcardsPage() directly. We wasted time going through graphify-sitter first which kept landing on layout.tsx (too high level).
+
+Rule: graphify-sitter → architecture/component discovery. find-nearest-nodes → specific UI behavior.
+
+Phase 3 — Inspect (Read before touching)
+pyslick patchit src/app/study/[deckId]/flashcards/page.tsx -l
+pyslick jsx-check src/app/study/[deckId]/flashcards/page.tsx
+
+List lines first, verify JSX is clean before any edit.
+
+Phase 4 — Identify the exact target
+
+From -l output, visually locate the container div — line 633. Confirm the exact className string to find-replace. No guessing.
+
+Phase 5 — Patch
+pyslick patchit "src/app/study/[deckId]/flashcards/page.tsx" -f
+# Find:    flex-1 p-2 sm:p-4 overflow-hidden flex items-center
+# Replace: flex-1 overflow-hidden flex items-center pt-[50px] pb-[60px]
+Phase 6 — Verify diff, then checkpoint
+# Review the diff output — confirm only 1 line changed
+pyslick checkpoint     # only if patchit didn't auto-checkpoint
+pyslick log            # confirm commit is recorded
